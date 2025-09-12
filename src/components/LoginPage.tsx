@@ -52,14 +52,16 @@ const LoginPage = () => {
       localStorage.setItem("role", response.role);
 
       addToast("Login successful", "success");
-      // Redirect based on role (case-insensitive)
-      const role = response.role?.toLowerCase();
+      // Redirect based on role (remove ROLE_ prefix)
+      const role = response.role?.replace("ROLE_", "").toLowerCase();
       if (role === "admin") {
         navigate("/admin-dashboard");
       } else if (role === "passenger") {
         navigate("/passenger-dashboard");
       } else if (role === "crew") {
         navigate("/crew-dashboard");
+      } else if (role === "front_desk") {
+        navigate("/frontdesk-dashboard");
       } else {
         // Default fallback for unknown roles
         navigate("/passenger-dashboard");

@@ -16,13 +16,22 @@ import { authAPI, SignupRequest } from "../services/api";
 const SignupPage = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState<
-    SignupRequest & { confirmPassword: string }
+    SignupRequest & { confirmPassword: string; phone: string }
   >({
     name: "",
     email: "",
     phone: "",
     password: "",
     confirmPassword: "",
+    userType: "passenger",
+    passportNumber: "",
+    nationality: "",
+    dateOfBirth: "",
+    employeeNumber: "",
+    accessLevel: "",
+    position: "",
+    licenseNumber: "",
+    department: "",
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -178,6 +187,65 @@ const SignupPage = () => {
                   placeholder="+966512345678"
                 />
               </div>
+            </div>
+
+            {/* Passport Number Field */}
+            <div>
+              <label
+                htmlFor="passportNumber"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
+                Passport Number
+              </label>
+              <input
+                type="text"
+                id="passportNumber"
+                name="passportNumber"
+                value={formData.passportNumber}
+                onChange={handleChange}
+                required
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                placeholder="Enter your passport number"
+              />
+            </div>
+
+            {/* Nationality Field */}
+            <div>
+              <label
+                htmlFor="nationality"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
+                Nationality
+              </label>
+              <input
+                type="text"
+                id="nationality"
+                name="nationality"
+                value={formData.nationality}
+                onChange={handleChange}
+                required
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                placeholder="Enter your nationality"
+              />
+            </div>
+
+            {/* Date of Birth Field */}
+            <div>
+              <label
+                htmlFor="dateOfBirth"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
+                Date of Birth
+              </label>
+              <input
+                type="date"
+                id="dateOfBirth"
+                name="dateOfBirth"
+                value={formData.dateOfBirth}
+                onChange={handleChange}
+                required
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              />
             </div>
 
             {/* Password Field */}
