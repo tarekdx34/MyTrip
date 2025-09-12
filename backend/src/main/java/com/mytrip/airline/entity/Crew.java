@@ -1,5 +1,6 @@
 package com.mytrip.airline.entity;
 
+import com.fasterxml.jackson.annotation.JsonValue;
 import jakarta.persistence.*;
 
 @Entity
@@ -14,14 +15,43 @@ public class Crew {
     private User user;
 
     private String employeeNumber;
+    
+    private String licenseNumber; // This was missing!
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "position")
     private Position position;
-
-    private String licenseNumber;
+    
+    // Single Position enum with proper mapping
+    public enum Position {
+        PILOT("pilot"),
+        CO_PILOT("co_pilot"),
+        FLIGHT_ATTENDANT("flight_attendant"),
+        CABIN_CREW("cabin_crew");
+        
+        private final String value;
+        
+        Position(String value) {
+            this.value = value;
+        }
+        
+        @JsonValue
+        public String getValue() {
+            return value;
+        }
+        
+        // Method to create enum from string value
+        public static Position fromValue(String value) {
+            for (Position position : Position.values()) {
+                if (position.value.equals(value)) {
+                    return position;
+                }
+            }
+            throw new IllegalArgumentException("Invalid position: " + value);
+        }
+    }
 
     // Getters and Setters
-
     public Long getCrewID() {
         return crewID;
     }
@@ -60,12 +90,5 @@ public class Crew {
 
     public void setLicenseNumber(String licenseNumber) {
         this.licenseNumber = licenseNumber;
-    }
-
-    public enum Position {
-        pilot,
-        co_pilot,
-        flight_attendant,
-        cabin_crew
     }
 }

@@ -60,7 +60,7 @@ public class AuthController {
                     crew.setEmployeeNumber(request.getEmployeeNumber());
                     if (request.getPosition() != null) {
                         try {
-                            crew.setPosition(Crew.Position.valueOf(request.getPosition().toUpperCase()));
+                            crew.setPosition(Crew.Position.fromValue(request.getPosition()));
                         } catch (IllegalArgumentException e) {
                             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                                 .body("Invalid crew position: " + request.getPosition());
