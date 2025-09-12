@@ -1,5 +1,18 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import mockAPI from "../services/mockAPI";
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 import {
   Plane,
   Users,
@@ -16,222 +29,10 @@ import {
   Search,
   Calendar,
   Clock,
+  RotateCcw,
+  Building,
+  CreditCard,
 } from "lucide-react";
-
-const LOCAL_STORAGE_KEYS = {
-  flights: "mytrip_flights",
-  users: "mytrip_users",
-  demandReports: "mytrip_demandReports",
-};
-
-const defaultFlights = [
-  {
-    flightId: "FL123",
-    airline: "MY TRIP AIR",
-    origin: "JED",
-    destination: "DXB",
-    departureTime: "2025-09-20T14:30:00Z",
-    arrivalTime: "2025-09-20T16:45:00Z",
-    status: "Scheduled",
-    crew: ["Pilot A", "Co-Pilot B"],
-  },
-  {
-    flightId: "FL456",
-    airline: "MY TRIP AIR",
-    origin: "RUH",
-    destination: "CAI",
-    departureTime: "2025-09-21T09:15:00Z",
-    arrivalTime: "2025-09-21T11:30:00Z",
-    status: "Scheduled",
-    crew: ["Pilot C", "Attendant D"],
-  },
-  {
-    flightId: "FL789",
-    airline: "MY TRIP AIR",
-    origin: "DXB",
-    destination: "LHR",
-    departureTime: "2025-09-22T22:00:00Z",
-    arrivalTime: "2025-09-23T04:30:00Z",
-    status: "Scheduled",
-    crew: ["Pilot E", "Co-Pilot F", "Attendant G"],
-  },
-];
-
-const defaultUsers = [
-  {
-    userId: 101,
-    name: "Ahmed Ali",
-    email: "ahmed@example.com",
-    role: "Passenger",
-    status: "active",
-  },
-  {
-    userId: 102,
-    name: "Sara Ahmed",
-    email: "sara@example.com",
-    role: "Crew",
-    status: "active",
-  },
-  {
-    userId: 103,
-    name: "Mohammed Hassan",
-    email: "mohammed@example.com",
-    role: "Passenger",
-    status: "suspended",
-  },
-  {
-    userId: 104,
-    name: "Fatima Omar",
-    email: "fatima@example.com",
-    role: "Admin",
-    status: "active",
-  },
-];
-
-const defaultDemandReports = [
-  {
-    route: "JED → LHR",
-    demandLevel: "High",
-    searchesWithoutDirectFlight: 348,
-  },
-  {
-    route: "JED → DXB",
-    demandLevel: "Medium",
-    searchesWithoutDirectFlight: 120,
-  },
-  {
-    route: "RUH → CAI",
-    demandLevel: "Low",
-    searchesWithoutDirectFlight: 45,
-  },
-  {
-    route: "DXB → IST",
-    demandLevel: "High",
-    searchesWithoutDirectFlight: 267,
-  },
-];
-
-const mockAPI = {
-  async getFlights() {
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    const flights =
-      JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEYS.flights)) ||
-      defaultFlights;
-    return flights;
-  },
-
-  async createFlight(flightData) {
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    const flights =
-      JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEYS.flights)) ||
-      defaultFlights;
-    const newFlight = {
-      flightId: `FL${Date.now()}`,
-      airline: "MY TRIP AIR",
-      ...flightData,
-      status: "Scheduled",
-      crew: [],
-    };
-    flights.push(newFlight);
-    localStorage.setItem(LOCAL_STORAGE_KEYS.flights, JSON.stringify(flights));
-    return { flightId: newFlight.flightId, status: "Created" };
-  },
-
-  async updateFlight(flightId, flightData) {
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    const flights =
-      JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEYS.flights)) ||
-      defaultFlights;
-    const index = flights.findIndex((f) => f.flightId === flightId);
-    if (index !== -1) {
-      flights[index] = { ...flights[index], ...flightData };
-      localStorage.setItem(LOCAL_STORAGE_KEYS.flights, JSON.stringify(flights));
-      return { status: "Updated" };
-    }
-    return { status: "Not Found" };
-  },
-
-  async deleteFlight(flightId) {
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    let flights =
-      JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEYS.flights)) ||
-      defaultFlights;
-    flights = flights.filter((f) => f.flightId !== flightId);
-    localStorage.setItem(LOCAL_STORAGE_KEYS.flights, JSON.stringify(flights));
-    return { status: "Cancelled" };
-  },
-
-  async getUsers() {
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    const users =
-      JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEYS.users)) ||
-      defaultUsers;
-    return users;
-  },
-
-  async createUser(userData) {
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    const users =
-      JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEYS.users)) ||
-      defaultUsers;
-    const newUserId =
-      users.length > 0 ? Math.max(...users.map((u) => u.userId)) + 1 : 101;
-    const newUser = {
-      userId: newUserId,
-      status: "active",
-      ...userData,
-    };
-    users.push(newUser);
-    localStorage.setItem(LOCAL_STORAGE_KEYS.users, JSON.stringify(users));
-    return { userId: newUserId, status: "Created" };
-  },
-
-  async suspendUser(userId) {
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    const users =
-      JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEYS.users)) ||
-      defaultUsers;
-    const index = users.findIndex((u) => u.userId === userId);
-    if (index !== -1) {
-      users[index].status = "suspended";
-      localStorage.setItem(LOCAL_STORAGE_KEYS.users, JSON.stringify(users));
-      return { status: "Suspended" };
-    }
-    return { status: "Not Found" };
-  },
-
-  async deleteUser(userId) {
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    let users =
-      JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEYS.users)) ||
-      defaultUsers;
-    users = users.filter((u) => u.userId !== userId);
-    localStorage.setItem(LOCAL_STORAGE_KEYS.users, JSON.stringify(users));
-    return { status: "Deleted" };
-  },
-
-  async assignCrew(flightId, crew) {
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    const flights =
-      JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEYS.flights)) ||
-      defaultFlights;
-    const index = flights.findIndex((f) => f.flightId === flightId);
-    if (index !== -1) {
-      flights[index].crew = crew;
-      localStorage.setItem(LOCAL_STORAGE_KEYS.flights, JSON.stringify(flights));
-      return { status: "Crew Assigned" };
-    }
-    return { status: "Not Found" };
-  },
-
-  async getDemandReports() {
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    const reports =
-      JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEYS.demandReports)) ||
-      defaultDemandReports;
-    return reports;
-  },
-};
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -239,6 +40,12 @@ const AdminDashboard = () => {
   const [flights, setFlights] = useState([]);
   const [users, setUsers] = useState([]);
   const [demandReports, setDemandReports] = useState([]);
+  const [aircrafts, setAircrafts] = useState([]);
+  const [airports, setAirports] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [flightStats, setFlightStats] = useState([]);
+  const [userActivity, setUserActivity] = useState([]);
+  const [revenueReports, setRevenueReports] = useState([]);
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState(null);
 
@@ -247,7 +54,13 @@ const AdminDashboard = () => {
   const [showEditFlightModal, setShowEditFlightModal] = useState(false);
   const [showCrewModal, setShowCrewModal] = useState(false);
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [showAddAircraftModal, setShowAddAircraftModal] = useState(false);
+  const [showEditAircraftModal, setShowEditAircraftModal] = useState(false);
+  const [showAddAirportModal, setShowAddAirportModal] = useState(false);
+  const [showEditAirportModal, setShowEditAirportModal] = useState(false);
   const [selectedFlight, setSelectedFlight] = useState(null);
+  const [selectedAircraft, setSelectedAircraft] = useState(null);
+  const [selectedAirport, setSelectedAirport] = useState(null);
 
   // Form states
   const [flightForm, setFlightForm] = useState({
@@ -265,6 +78,17 @@ const AdminDashboard = () => {
     email: "",
     role: "",
   });
+  const [aircraftForm, setAircraftForm] = useState({
+    aircraftId: "",
+    model: "",
+    capacity: "",
+  });
+  const [airportForm, setAirportForm] = useState({
+    code: "",
+    name: "",
+    city: "",
+    country: "",
+  });
 
   // Load initial data
   useEffect(() => {
@@ -274,14 +98,36 @@ const AdminDashboard = () => {
   const loadAllData = async () => {
     setLoading(true);
     try {
-      const [flightsData, usersData, reportsData] = await Promise.all([
+      const [
+        flightsData,
+        usersData,
+        reportsData,
+        aircraftsData,
+        airportsData,
+        paymentsData,
+        flightStatsData,
+        userActivityData,
+        revenueReportsData,
+      ] = await Promise.all([
         mockAPI.getFlights(),
         mockAPI.getUsers(),
         mockAPI.getDemandReports(),
+        mockAPI.getAircrafts(),
+        mockAPI.getAirports(),
+        mockAPI.getPayments(),
+        mockAPI.getFlightStats(),
+        mockAPI.getUserActivity(),
+        mockAPI.getRevenueReports(),
       ]);
       setFlights(flightsData);
       setUsers(usersData);
       setDemandReports(reportsData);
+      setAircrafts(aircraftsData);
+      setAirports(airportsData);
+      setPayments(paymentsData);
+      setFlightStats(flightStatsData);
+      setUserActivity(userActivityData);
+      setRevenueReports(revenueReportsData);
     } catch (error) {
       showAlert("Failed to load data", "error");
     } finally {
@@ -433,6 +279,21 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleRestoreUser = async (userId) => {
+    if (!confirm("Are you sure you want to restore this user?")) return;
+
+    setLoading(true);
+    try {
+      await mockAPI.restoreUser(userId);
+      showAlert("User restored successfully");
+      loadAllData();
+    } catch (error) {
+      showAlert("Failed to restore user", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Crew Assignment
   const handleAssignCrew = async () => {
     if (!crewForm.flightId || !crewForm.crew) {
@@ -453,6 +314,222 @@ const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Aircraft Management
+  const handleAddAircraft = () => {
+    if (
+      !aircraftForm.aircraftId ||
+      !aircraftForm.model ||
+      !aircraftForm.capacity
+    ) {
+      showAlert("Please fill all fields", "error");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Get existing aircrafts from localStorage
+      const storedAircrafts =
+        JSON.parse(localStorage.getItem("aircrafts")) || [];
+      // Add new aircraft
+      const newAircraft = {
+        aircraftId: aircraftForm.aircraftId,
+        model: aircraftForm.model,
+        capacity: aircraftForm.capacity,
+        status: "Active",
+      };
+      const updatedAircrafts = [...storedAircrafts, newAircraft];
+      // Save back to localStorage
+      localStorage.setItem("aircrafts", JSON.stringify(updatedAircrafts));
+      // Update state
+      setAircrafts(updatedAircrafts);
+      showAlert(`Aircraft ${newAircraft.aircraftId} added successfully`);
+      setShowAddAircraftModal(false);
+      setAircraftForm({
+        aircraftId: "",
+        model: "",
+        capacity: "",
+      });
+    } catch (error) {
+      showAlert("Failed to add aircraft", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditAircraft = () => {
+    if (!selectedAircraft) return;
+
+    setLoading(true);
+    try {
+      // Get existing aircrafts from localStorage
+      const storedAircrafts =
+        JSON.parse(localStorage.getItem("aircrafts")) || [];
+      // Update the selected aircraft
+      const updatedAircrafts = storedAircrafts.map((aircraft) =>
+        aircraft.aircraftId === selectedAircraft.aircraftId
+          ? {
+              ...aircraft,
+              model: aircraftForm.model,
+              capacity: aircraftForm.capacity,
+            }
+          : aircraft
+      );
+      // Save back to localStorage
+      localStorage.setItem("aircrafts", JSON.stringify(updatedAircrafts));
+      // Update state
+      setAircrafts(updatedAircrafts);
+      showAlert("Aircraft updated successfully");
+      setShowEditAircraftModal(false);
+      setSelectedAircraft(null);
+      setAircraftForm({
+        aircraftId: "",
+        model: "",
+        capacity: "",
+      });
+    } catch (error) {
+      showAlert("Failed to update aircraft", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteAircraft = (aircraftId) => {
+    if (!confirm("Are you sure you want to delete this aircraft?")) return;
+
+    setLoading(true);
+    try {
+      // Get existing aircrafts from localStorage
+      const storedAircrafts =
+        JSON.parse(localStorage.getItem("aircrafts")) || [];
+      // Remove the aircraft
+      const updatedAircrafts = storedAircrafts.filter(
+        (aircraft) => aircraft.aircraftId !== aircraftId
+      );
+      // Save back to localStorage
+      localStorage.setItem("aircrafts", JSON.stringify(updatedAircrafts));
+      // Update state
+      setAircrafts(updatedAircrafts);
+      showAlert("Aircraft deleted successfully");
+    } catch (error) {
+      showAlert("Failed to delete aircraft", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openEditAircraftModal = (aircraft) => {
+    setSelectedAircraft(aircraft);
+    setAircraftForm({
+      aircraftId: aircraft.aircraftId,
+      model: aircraft.model,
+      capacity: aircraft.capacity,
+    });
+    setShowEditAircraftModal(true);
+  };
+
+  // Airport Management
+  const handleAddAirport = async () => {
+    if (
+      !airportForm.code ||
+      !airportForm.name ||
+      !airportForm.city ||
+      !airportForm.country
+    ) {
+      showAlert("Please fill all fields", "error");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await mockAPI.createAirport(airportForm);
+      showAlert(`Airport ${result.code} created successfully`);
+      setShowAddAirportModal(false);
+      setAirportForm({
+        code: "",
+        name: "",
+        city: "",
+        country: "",
+      });
+      loadAllData();
+    } catch (error) {
+      showAlert("Failed to create airport", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditAirport = () => {
+    if (!selectedAirport) return;
+
+    setLoading(true);
+    try {
+      // Get existing airports from localStorage
+      const storedAirports = JSON.parse(localStorage.getItem("airports")) || [];
+      // Update the selected airport
+      const updatedAirports = storedAirports.map((airport) =>
+        airport.code === selectedAirport.code
+          ? {
+              ...airport,
+              name: airportForm.name,
+              city: airportForm.city,
+              country: airportForm.country,
+            }
+          : airport
+      );
+      // Save back to localStorage
+      localStorage.setItem("airports", JSON.stringify(updatedAirports));
+      // Update state
+      setAirports(updatedAirports);
+      showAlert("Airport updated successfully");
+      setShowEditAirportModal(false);
+      setSelectedAirport(null);
+      setAirportForm({
+        code: "",
+        name: "",
+        city: "",
+        country: "",
+      });
+    } catch (error) {
+      showAlert("Failed to update airport", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteAirport = (airportCode) => {
+    if (!confirm("Are you sure you want to delete this airport?")) return;
+
+    setLoading(true);
+    try {
+      // Get existing airports from localStorage
+      const storedAirports = JSON.parse(localStorage.getItem("airports")) || [];
+      // Remove the airport
+      const updatedAirports = storedAirports.filter(
+        (airport) => airport.code !== airportCode
+      );
+      // Save back to localStorage
+      localStorage.setItem("airports", JSON.stringify(updatedAirports));
+      // Update state
+      setAirports(updatedAirports);
+      showAlert("Airport deleted successfully");
+    } catch (error) {
+      showAlert("Failed to delete airport", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openEditAirportModal = (airport) => {
+    setSelectedAirport(airport);
+    setAirportForm({
+      code: airport.code,
+      name: airport.name,
+      city: airport.city,
+      country: airport.country,
+    });
+    setShowEditAirportModal(true);
   };
 
   const getDemandLevelColor = (level) => {
@@ -533,35 +610,110 @@ const AdminDashboard = () => {
               <BarChart3 className="h-5 w-5" />
               <span>Reports</span>
             </button>
+
+            <button
+              onClick={() => setActiveSection("aircrafts")}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors ${
+                activeSection === "aircrafts"
+                  ? "bg-blue-100 text-blue-700"
+                  : "text-gray-700 hover:bg-gray-100"
+              }`}
+            >
+              <Plane className="h-5 w-5" />
+              <span>Manage Aircrafts</span>
+            </button>
+
+            <button
+              onClick={() => setActiveSection("airports")}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors ${
+                activeSection === "airports"
+                  ? "bg-blue-100 text-blue-700"
+                  : "text-gray-700 hover:bg-gray-100"
+              }`}
+            >
+              <Building className="h-5 w-5" />
+              <span>Manage Airports</span>
+            </button>
+
+            <button
+              onClick={() => setActiveSection("payments")}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors ${
+                activeSection === "payments"
+                  ? "bg-blue-100 text-blue-700"
+                  : "text-gray-700 hover:bg-gray-100"
+              }`}
+            >
+              <CreditCard className="h-5 w-5" />
+              <span>Payment Management</span>
+            </button>
+
+            <button
+              onClick={() => setActiveSection("statistics")}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors ${
+                activeSection === "statistics"
+                  ? "bg-blue-100 text-blue-700"
+                  : "text-gray-700 hover:bg-gray-100"
+              }`}
+            >
+              <BarChart3 className="h-5 w-5" />
+              <span>Flight Statistics</span>
+            </button>
+
+            <button
+              onClick={() => setActiveSection("activity")}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors ${
+                activeSection === "activity"
+                  ? "bg-blue-100 text-blue-700"
+                  : "text-gray-700 hover:bg-gray-100"
+              }`}
+            >
+              <Users className="h-5 w-5" />
+              <span>User Activity</span>
+            </button>
+
+            <button
+              onClick={() => setActiveSection("revenue")}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors ${
+                activeSection === "revenue"
+                  ? "bg-blue-100 text-blue-700"
+                  : "text-gray-700 hover:bg-gray-100"
+              }`}
+            >
+              <BarChart3 className="h-5 w-5" />
+              <span>Revenue Reports</span>
+            </button>
           </div>
         </nav>
-
-        <div className="absolute bottom-4 left-4 right-4">
-          <button
-            onClick={() => {
-              if (confirm("Are you sure you want to log out?")) {
-                navigate("/");
-              }
-            }}
-            className="w-full flex items-center space-x-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <LogOut className="h-5 w-5" />
-            <span>Logout</span>
-          </button>
-        </div>
       </div>
 
       {/* Main Content */}
       <div className="flex-1">
         {/* Header */}
         <div className="bg-white shadow-sm border-b">
-          <div className="px-6 py-4">
+          <div className="px-6 py-4 flex justify-between items-center">
             <h2 className="text-2xl font-bold text-gray-900">
               {activeSection === "flights" && "Flight Management"}
               {activeSection === "users" && "User Management"}
               {activeSection === "crew" && "Crew Assignment"}
               {activeSection === "reports" && "Demand Reports"}
+              {activeSection === "aircrafts" && "Aircraft Management"}
+              {activeSection === "airports" && "Airport Management"}
+              {activeSection === "payments" && "Payment Management"}
+              {activeSection === "statistics" && "Flight Statistics"}
+              {activeSection === "activity" && "User Activity"}
+              {activeSection === "revenue" && "Revenue Reports"}
             </h2>
+            <button
+              onClick={() => {
+                if (confirm("Are you sure you want to log out?")) {
+                  navigate("/");
+                }
+              }}
+              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Logout"
+            >
+              <LogOut className="h-5 w-5" />
+            </button>
           </div>
         </div>
 
@@ -825,12 +977,19 @@ const AdminDashboard = () => {
                               </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                              {user.status === "active" && (
+                              {user.status === "active" ? (
                                 <button
                                   onClick={() => handleSuspendUser(user.userId)}
                                   className="text-yellow-600 hover:text-yellow-900"
                                 >
                                   Suspend
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleRestoreUser(user.userId)}
+                                  className="text-green-600 hover:text-green-900"
+                                >
+                                  <RotateCcw className="h-4 w-4" />
                                 </button>
                               )}
                               <button
@@ -974,6 +1133,446 @@ const AdminDashboard = () => {
                       </tbody>
                     </table>
                   )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Aircrafts Section */}
+          {activeSection === "aircrafts" && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Aircraft Management
+                </h3>
+                <button
+                  onClick={() => setShowAddAircraftModal(true)}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Add Aircraft</span>
+                </button>
+              </div>
+
+              <div className="bg-white rounded-lg shadow overflow-hidden">
+                <div className="overflow-x-auto">
+                  {loading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                      <span className="ml-2 text-gray-600">
+                        Loading aircrafts...
+                      </span>
+                    </div>
+                  ) : (
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Aircraft ID
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Model
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Capacity
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {aircrafts.map((aircraft) => (
+                          <tr
+                            key={aircraft.aircraftId}
+                            className="hover:bg-gray-50"
+                          >
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">
+                                {aircraft.aircraftId}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">
+                                {aircraft.model}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">
+                                {aircraft.capacity}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                {aircraft.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                              <button
+                                onClick={() => openEditAircraftModal(aircraft)}
+                                className="text-blue-600 hover:text-blue-900"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleDeleteAircraft(aircraft.aircraftId)
+                                }
+                                className="text-red-600 hover:text-red-900"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Airports Section */}
+          {activeSection === "airports" && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Airport Management
+                </h3>
+                <button
+                  onClick={() => setShowAddAirportModal(true)}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Add Airport</span>
+                </button>
+              </div>
+
+              <div className="bg-white rounded-lg shadow overflow-hidden">
+                <div className="overflow-x-auto">
+                  {loading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                      <span className="ml-2 text-gray-600">
+                        Loading airports...
+                      </span>
+                    </div>
+                  ) : (
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Airport Code
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Name
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            City
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Country
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {airports.map((airport) => (
+                          <tr key={airport.code} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">
+                                {airport.code}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">
+                                {airport.name}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">
+                                {airport.city}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">
+                                {airport.country}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                              <button
+                                onClick={() => openEditAirportModal(airport)}
+                                className="text-blue-600 hover:text-blue-900"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleDeleteAirport(airport.code)
+                                }
+                                className="text-red-600 hover:text-red-900"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Payments Section */}
+          {activeSection === "payments" && (
+            <div className="space-y-6">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Payment Management
+              </h3>
+
+              <div className="bg-white rounded-lg shadow overflow-hidden">
+                <div className="overflow-x-auto">
+                  {loading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                      <span className="ml-2 text-gray-600">
+                        Loading payments...
+                      </span>
+                    </div>
+                  ) : (
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Payment ID
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Booking ID
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Amount
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Method
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Date
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {payments.map((payment) => (
+                          <tr
+                            key={payment.paymentId}
+                            className="hover:bg-gray-50"
+                          >
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">
+                                {payment.paymentId}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">
+                                {payment.bookingId}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">
+                                ${payment.amount}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">
+                                {payment.method}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                {payment.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {formatDateTime(payment.date)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Statistics Section */}
+          {activeSection === "statistics" && (
+            <div className="space-y-6">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Flight Statistics
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h4 className="text-lg font-medium text-gray-900 mb-4">
+                    Flight Performance
+                  </h4>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={flightStats}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Bar dataKey="flights" fill="#3B82F6" />
+                      <Bar dataKey="onTime" fill="#10B981" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h4 className="text-lg font-medium text-gray-900 mb-4">
+                    Passenger Load Factor
+                  </h4>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={flightStats}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Line
+                        type="monotone"
+                        dataKey="loadFactor"
+                        stroke="#3B82F6"
+                        strokeWidth={2}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Activity Section */}
+          {activeSection === "activity" && (
+            <div className="space-y-6">
+              <h3 className="text-lg font-semibold text-gray-900">
+                User Activity
+              </h3>
+
+              <div className="bg-white rounded-lg shadow overflow-hidden">
+                <div className="overflow-x-auto">
+                  {loading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                      <span className="ml-2 text-gray-600">
+                        Loading activity...
+                      </span>
+                    </div>
+                  ) : (
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            User ID
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Action
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Details
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Timestamp
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {userActivity.map((activity, index) => (
+                          <tr key={index} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">
+                                {activity.userId}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">
+                                {activity.action}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">
+                                {activity.details}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {formatDateTime(activity.timestamp)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Revenue Section */}
+          {activeSection === "revenue" && (
+            <div className="space-y-6">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Revenue Reports
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h4 className="text-lg font-medium text-gray-900 mb-4">
+                    Monthly Revenue
+                  </h4>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={revenueReports}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Line
+                        type="monotone"
+                        dataKey="revenue"
+                        stroke="#10B981"
+                        strokeWidth={2}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h4 className="text-lg font-medium text-gray-900 mb-4">
+                    Revenue Breakdown
+                  </h4>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={revenueReports}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Bar dataKey="ticketSales" fill="#3B82F6" />
+                      <Bar dataKey="ancillary" fill="#F59E0B" />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
             </div>
@@ -1364,6 +1963,399 @@ const AdminDashboard = () => {
                     </div>
                   ) : (
                     "Create User"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Aircraft Modal */}
+      {showAddAircraftModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Add New Aircraft
+              </h3>
+              <button
+                onClick={() => setShowAddAircraftModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Aircraft ID
+                </label>
+                <input
+                  type="text"
+                  value={aircraftForm.aircraftId}
+                  onChange={(e) =>
+                    setAircraftForm({
+                      ...aircraftForm,
+                      aircraftId: e.target.value,
+                    })
+                  }
+                  placeholder="e.g., AC001"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Model
+                </label>
+                <input
+                  type="text"
+                  value={aircraftForm.model}
+                  onChange={(e) =>
+                    setAircraftForm({ ...aircraftForm, model: e.target.value })
+                  }
+                  placeholder="e.g., Boeing 737"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Capacity
+                </label>
+                <input
+                  type="number"
+                  value={aircraftForm.capacity}
+                  onChange={(e) =>
+                    setAircraftForm({
+                      ...aircraftForm,
+                      capacity: e.target.value,
+                    })
+                  }
+                  placeholder="e.g., 150"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowAddAircraftModal(false)}
+                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddAircraft}
+                  disabled={loading}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {loading ? (
+                    <div className="flex items-center justify-center">
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Adding...
+                    </div>
+                  ) : (
+                    "Add Aircraft"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Aircraft Modal */}
+      {showEditAircraftModal && selectedAircraft && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Edit Aircraft
+              </h3>
+              <button
+                onClick={() => setShowEditAircraftModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Aircraft ID
+                </label>
+                <input
+                  type="text"
+                  value={aircraftForm.aircraftId}
+                  onChange={(e) =>
+                    setAircraftForm({
+                      ...aircraftForm,
+                      aircraftId: e.target.value,
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  disabled
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Model
+                </label>
+                <input
+                  type="text"
+                  value={aircraftForm.model}
+                  onChange={(e) =>
+                    setAircraftForm({ ...aircraftForm, model: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Capacity
+                </label>
+                <input
+                  type="number"
+                  value={aircraftForm.capacity}
+                  onChange={(e) =>
+                    setAircraftForm({
+                      ...aircraftForm,
+                      capacity: e.target.value,
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowEditAircraftModal(false)}
+                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleEditAircraft}
+                  disabled={loading}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {loading ? (
+                    <div className="flex items-center justify-center">
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Updating...
+                    </div>
+                  ) : (
+                    "Update Aircraft"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Airport Modal */}
+      {showAddAirportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Add New Airport
+              </h3>
+              <button
+                onClick={() => setShowAddAirportModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Airport Code
+                </label>
+                <input
+                  type="text"
+                  value={airportForm.code}
+                  onChange={(e) =>
+                    setAirportForm({ ...airportForm, code: e.target.value })
+                  }
+                  placeholder="e.g., JED"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Name
+                </label>
+                <input
+                  type="text"
+                  value={airportForm.name}
+                  onChange={(e) =>
+                    setAirportForm({ ...airportForm, name: e.target.value })
+                  }
+                  placeholder="e.g., King Abdulaziz International Airport"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  City
+                </label>
+                <input
+                  type="text"
+                  value={airportForm.city}
+                  onChange={(e) =>
+                    setAirportForm({ ...airportForm, city: e.target.value })
+                  }
+                  placeholder="e.g., Jeddah"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Country
+                </label>
+                <input
+                  type="text"
+                  value={airportForm.country}
+                  onChange={(e) =>
+                    setAirportForm({ ...airportForm, country: e.target.value })
+                  }
+                  placeholder="e.g., Saudi Arabia"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowAddAirportModal(false)}
+                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddAirport}
+                  disabled={loading}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {loading ? (
+                    <div className="flex items-center justify-center">
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Adding...
+                    </div>
+                  ) : (
+                    "Add Airport"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Airport Modal */}
+      {showEditAirportModal && selectedAirport && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Edit Airport
+              </h3>
+              <button
+                onClick={() => setShowEditAirportModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Airport Code
+                </label>
+                <input
+                  type="text"
+                  value={airportForm.code}
+                  onChange={(e) =>
+                    setAirportForm({ ...airportForm, code: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  disabled
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Name
+                </label>
+                <input
+                  type="text"
+                  value={airportForm.name}
+                  onChange={(e) =>
+                    setAirportForm({ ...airportForm, name: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  City
+                </label>
+                <input
+                  type="text"
+                  value={airportForm.city}
+                  onChange={(e) =>
+                    setAirportForm({ ...airportForm, city: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Country
+                </label>
+                <input
+                  type="text"
+                  value={airportForm.country}
+                  onChange={(e) =>
+                    setAirportForm({ ...airportForm, country: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowEditAirportModal(false)}
+                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleEditAirport}
+                  disabled={loading}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {loading ? (
+                    <div className="flex items-center justify-center">
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Updating...
+                    </div>
+                  ) : (
+                    "Update Airport"
                   )}
                 </button>
               </div>

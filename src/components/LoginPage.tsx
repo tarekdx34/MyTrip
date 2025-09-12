@@ -190,6 +190,9 @@ const LoginPage = () => {
               <p>
                 <strong>Crew:</strong> crew@mytrip.com / crew123
               </p>
+              <p>
+                <strong>Front Desk:</strong> frontdesk@mytrip.com / frontdesk123
+              </p>
             </div>
           </div>
 

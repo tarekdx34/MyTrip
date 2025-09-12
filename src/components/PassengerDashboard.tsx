@@ -16,6 +16,9 @@ import {
   BookOpen,
   Trash2,
   LogOut,
+  Ticket,
+  User,
+  CreditCard,
 } from "lucide-react";
 
 // Mock API interfaces
@@ -49,6 +52,43 @@ interface Notification {
   message: string;
   timestamp: string;
   read?: boolean;
+}
+
+interface Ticket {
+  ticketId: string;
+  bookingId: string;
+  flightId: string;
+  seatClass: string;
+  seatNumber: string;
+  status: string;
+  boardingPass?: string;
+}
+
+interface CheckInFlight {
+  flightId: string;
+  departureTime: string;
+  origin: string;
+  destination: string;
+  checkedIn: boolean;
+}
+
+interface Profile {
+  userId: number;
+  name: string;
+  email: string;
+  preferences: {
+    seatPreference: string;
+    mealPreference: string;
+    frequentFlyerNumber: string;
+  };
+}
+
+interface RefundRequest {
+  refundId: string;
+  bookingId: string;
+  amount: number;
+  status: string;
+  reason: string;
 }
 
 // Mock API functions
@@ -201,16 +241,142 @@ const mockAPI = {
       };
     }
   },
+
+  async getTickets(userId: number): Promise<Ticket[]> {
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    const bookings = await mockAPI.getBookings(userId);
+    return bookings.map((booking) => ({
+      ticketId: booking.ticketId,
+      bookingId: booking.bookingId,
+      flightId: booking.flightId,
+      seatClass: booking.seatClass,
+      seatNumber: booking.seatNumber,
+      status: booking.status === "Confirmed" ? "CheckedIn" : booking.status,
+      boardingPass:
+        booking.status === "Confirmed" ? `BP${booking.ticketId}` : undefined,
+    }));
+  },
+
+  async modifyTicket(
+    ticketId: string,
+    updates: { seatNumber: string }
+  ): Promise<{ status: string; message: string }> {
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    // Mock modification
+    return { status: "Success", message: "Ticket modified successfully" };
+  },
+
+  async getCheckInEligibleFlights(userId: number): Promise<CheckInFlight[]> {
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    const bookings = await mockAPI.getBookings(userId);
+    return bookings
+      .filter((booking) => booking.status === "Confirmed")
+      .map((booking) => ({
+        flightId: booking.flightId,
+        departureTime: "2025-09-20T14:30:00Z", // Mock
+        origin: "JED",
+        destination: "DXB",
+        checkedIn: booking.status === "CheckedIn",
+      }));
+  },
+
+  async checkIn(
+    bookingId: string,
+    seatNumber: string
+  ): Promise<{ status: string; boardingPass: string; message: string }> {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const boardingPass = `BP${Date.now()}`;
+    return {
+      status: "CheckedIn",
+      boardingPass,
+      message: "Check-in successful",
+    };
+  },
+
+  async getBoardingPass(ticketId: string): Promise<{
+    boardingPass: string;
+    flightId: string;
+    seatNumber: string;
+    departureTime: string;
+    gate: string;
+  }> {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    return {
+      boardingPass: `BP${ticketId}`,
+      flightId: "FL123",
+      seatNumber: "12A",
+      departureTime: "2025-09-20T14:30:00Z",
+      gate: "A1",
+    };
+  },
+
+  async getProfile(userId: number): Promise<Profile> {
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    return {
+      userId,
+      name: "Ahmed Ali",
+      email: "ahmed@example.com",
+      preferences: {
+        seatPreference: "Window",
+        mealPreference: "Vegetarian",
+        frequentFlyerNumber: "FF123456",
+      },
+    };
+  },
+
+  async updateProfile(
+    userId: number,
+    updates: Partial<Profile>
+  ): Promise<{ status: string; message: string }> {
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    return { status: "Success", message: "Profile updated successfully" };
+  },
+
+  async requestRefund(
+    bookingId: string,
+    reason: string
+  ): Promise<{ refundId: string; status: string; message: string }> {
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    const refundId = `RF${Date.now()}`;
+    return {
+      refundId,
+      status: "Requested",
+      message: "Refund request submitted",
+    };
+  },
+
+  async getRefundStatus(userId: number): Promise<RefundRequest[]> {
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    return [
+      {
+        refundId: "RF123",
+        bookingId: "BK123",
+        amount: 250,
+        status: "Approved",
+        reason: "Flight cancelled",
+      },
+    ];
+  },
 };
 
 const PassengerDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<
-    "search" | "bookings" | "notifications"
+    | "search"
+    | "bookings"
+    | "notifications"
+    | "tickets"
+    | "checkin"
+    | "profile"
+    | "refunds"
   >("search");
   const [flights, setFlights] = useState<Flight[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [checkInFlights, setCheckInFlights] = useState<CheckInFlight[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [refunds, setRefunds] = useState<RefundRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -245,6 +411,31 @@ const PassengerDashboard: React.FC = () => {
     window.addEventListener("storage", handleStorageChange);
     return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
+
+  // Load data for specific tabs when they are activated
+  useEffect(() => {
+    if (activeTab === "tickets" && tickets.length === 0) {
+      loadTickets();
+    }
+  }, [activeTab, tickets.length]);
+
+  useEffect(() => {
+    if (activeTab === "checkin" && checkInFlights.length === 0) {
+      loadCheckInFlights();
+    }
+  }, [activeTab, checkInFlights.length]);
+
+  useEffect(() => {
+    if (activeTab === "profile" && !profile) {
+      loadProfile();
+    }
+  }, [activeTab, profile]);
+
+  useEffect(() => {
+    if (activeTab === "refunds" && refunds.length === 0) {
+      loadRefunds();
+    }
+  }, [activeTab, refunds.length]);
 
   const loadFlights = async (params?: typeof searchParams) => {
     setLoading(true);
@@ -337,6 +528,76 @@ const PassengerDashboard: React.FC = () => {
     return `${currency} ${price}`;
   };
 
+  const handleCheckIn = async (flightId: string) => {
+    try {
+      // Find the booking for this flight
+      const booking = bookings.find((b) => b.flightId === flightId);
+      if (!booking) {
+        alert("Booking not found for this flight");
+        return;
+      }
+
+      const result = await mockAPI.checkIn(
+        booking.bookingId,
+        booking.seatNumber
+      );
+      alert(result.message);
+
+      // Refresh bookings and check-in flights
+      loadBookings();
+      loadCheckInFlights();
+    } catch (err) {
+      alert("Failed to check in");
+    }
+  };
+
+  const handleUpdateProfile = async () => {
+    if (!profile) return;
+
+    try {
+      const result = await mockAPI.updateProfile(101, profile);
+      alert(result.message);
+    } catch (err) {
+      alert("Failed to update profile");
+    }
+  };
+
+  const loadCheckInFlights = async () => {
+    try {
+      const checkInData = await mockAPI.getCheckInEligibleFlights(101);
+      setCheckInFlights(checkInData);
+    } catch (err) {
+      console.error("Failed to load check-in flights:", err);
+    }
+  };
+
+  const loadTickets = async () => {
+    try {
+      const ticketData = await mockAPI.getTickets(101);
+      setTickets(ticketData);
+    } catch (err) {
+      console.error("Failed to load tickets:", err);
+    }
+  };
+
+  const loadProfile = async () => {
+    try {
+      const profileData = await mockAPI.getProfile(101);
+      setProfile(profileData);
+    } catch (err) {
+      console.error("Failed to load profile:", err);
+    }
+  };
+
+  const loadRefunds = async () => {
+    try {
+      const refundData = await mockAPI.getRefundStatus(101);
+      setRefunds(refundData);
+    } catch (err) {
+      console.error("Failed to load refunds:", err);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -414,6 +675,50 @@ const PassengerDashboard: React.FC = () => {
             >
               <Bell className="h-4 w-4 inline mr-2" />
               Notifications
+            </button>
+            <button
+              onClick={() => setActiveTab("tickets")}
+              className={`py-4 px-2 border-b-2 font-medium text-sm ${
+                activeTab === "tickets"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <Ticket className="h-4 w-4 inline mr-2" />
+              My Tickets
+            </button>
+            <button
+              onClick={() => setActiveTab("checkin")}
+              className={`py-4 px-2 border-b-2 font-medium text-sm ${
+                activeTab === "checkin"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <CheckCircle className="h-4 w-4 inline mr-2" />
+              Check-In
+            </button>
+            <button
+              onClick={() => setActiveTab("profile")}
+              className={`py-4 px-2 border-b-2 font-medium text-sm ${
+                activeTab === "profile"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <User className="h-4 w-4 inline mr-2" />
+              Profile
+            </button>
+            <button
+              onClick={() => setActiveTab("refunds")}
+              className={`py-4 px-2 border-b-2 font-medium text-sm ${
+                activeTab === "refunds"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <CreditCard className="h-4 w-4 inline mr-2" />
+              Refunds
             </button>
           </div>
         </div>
@@ -795,6 +1100,338 @@ const PassengerDashboard: React.FC = () => {
                             <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
                           </div>
                         )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* My Tickets Tab */}
+        {activeTab === "tickets" && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                My Tickets
+              </h2>
+              {tickets.length === 0 ? (
+                <div className="text-center py-12">
+                  <Ticket className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500">No tickets found</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {tickets.map((ticket) => (
+                    <div
+                      key={ticket.ticketId}
+                      className="border border-gray-200 rounded-lg p-4"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center space-x-3">
+                          <Ticket className="h-5 w-5 text-blue-600" />
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">
+                              Ticket #{ticket.ticketId}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              Flight {ticket.flightId}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span
+                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              ticket.status === "CheckedIn"
+                                ? "bg-green-100 text-green-800"
+                                : "bg-gray-100 text-gray-800"
+                            }`}
+                          >
+                            {ticket.status}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="grid md:grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-500">Seat Class:</span>
+                          <span className="ml-2 font-medium">
+                            {ticket.seatClass}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Seat Number:</span>
+                          <span className="ml-2 font-medium">
+                            {ticket.seatNumber}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Boarding Pass:</span>
+                          <span className="ml-2 font-medium">
+                            {ticket.boardingPass || "Not available"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Check-In Tab */}
+        {activeTab === "checkin" && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                Check-In
+              </h2>
+              {checkInFlights.length === 0 ? (
+                <div className="text-center py-12">
+                  <CheckCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500">
+                    No flights available for check-in
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {checkInFlights.map((flight) => (
+                    <div
+                      key={flight.flightId}
+                      className="border border-gray-200 rounded-lg p-4"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center space-x-3">
+                          <Plane className="h-5 w-5 text-blue-600" />
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">
+                              Flight {flight.flightId}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {flight.origin} → {flight.destination}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span
+                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              flight.checkedIn
+                                ? "bg-green-100 text-green-800"
+                                : "bg-yellow-100 text-yellow-800"
+                            }`}
+                          >
+                            {flight.checkedIn
+                              ? "Checked In"
+                              : "Ready for Check-In"}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="grid md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-500">Departure:</span>
+                          <span className="ml-2 font-medium">
+                            {formatDateTime(flight.departureTime)}
+                          </span>
+                        </div>
+                        <div>
+                          {!flight.checkedIn && (
+                            <button
+                              onClick={() => handleCheckIn(flight.flightId)}
+                              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                            >
+                              Check In
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Profile Tab */}
+        {activeTab === "profile" && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                My Profile
+              </h2>
+              {profile ? (
+                <div className="space-y-6">
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Name
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.name}
+                        onChange={(e) =>
+                          setProfile({ ...profile, name: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Email
+                      </label>
+                      <input
+                        type="email"
+                        value={profile.email}
+                        onChange={(e) =>
+                          setProfile({ ...profile, email: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid md:grid-cols-3 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Seat Preference
+                      </label>
+                      <select
+                        value={profile.preferences.seatPreference}
+                        onChange={(e) =>
+                          setProfile({
+                            ...profile,
+                            preferences: {
+                              ...profile.preferences,
+                              seatPreference: e.target.value,
+                            },
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="Window">Window</option>
+                        <option value="Aisle">Aisle</option>
+                        <option value="Middle">Middle</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Meal Preference
+                      </label>
+                      <select
+                        value={profile.preferences.mealPreference}
+                        onChange={(e) =>
+                          setProfile({
+                            ...profile,
+                            preferences: {
+                              ...profile.preferences,
+                              mealPreference: e.target.value,
+                            },
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="Vegetarian">Vegetarian</option>
+                        <option value="Non-Vegetarian">Non-Vegetarian</option>
+                        <option value="Vegan">Vegan</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Frequent Flyer Number
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.preferences.frequentFlyerNumber}
+                        onChange={(e) =>
+                          setProfile({
+                            ...profile,
+                            preferences: {
+                              ...profile.preferences,
+                              frequentFlyerNumber: e.target.value,
+                            },
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      onClick={handleUpdateProfile}
+                      className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                    >
+                      Update Profile
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500">Loading profile...</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Refunds Tab */}
+        {activeTab === "refunds" && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                Refund Requests
+              </h2>
+              {refunds.length === 0 ? (
+                <div className="text-center py-12">
+                  <CreditCard className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500">No refund requests found</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {refunds.map((refund) => (
+                    <div
+                      key={refund.refundId}
+                      className="border border-gray-200 rounded-lg p-4"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center space-x-3">
+                          <CreditCard className="h-5 w-5 text-blue-600" />
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">
+                              Refund #{refund.refundId}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              Booking {refund.bookingId}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span
+                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              refund.status === "Approved"
+                                ? "bg-green-100 text-green-800"
+                                : refund.status === "Rejected"
+                                ? "bg-red-100 text-red-800"
+                                : "bg-yellow-100 text-yellow-800"
+                            }`}
+                          >
+                            {refund.status}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="grid md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-500">Amount:</span>
+                          <span className="ml-2 font-medium">
+                            USD {refund.amount}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Reason:</span>
+                          <span className="ml-2 font-medium">
+                            {refund.reason}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   ))}

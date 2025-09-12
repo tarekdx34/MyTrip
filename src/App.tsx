@@ -6,6 +6,7 @@ import SignupPage from "./components/SignupPage";
 import PassengerDashboard from "./components/PassengerDashboard";
 import AdminDashboard from "./components/AdminDashboard";
 import CrewDashboard from "./components/CrewDashboard";
+import FrontDeskDashboard from "./components/FrontDeskDashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PaymentPage from "./components/PaymentPage";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -49,6 +50,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <CrewDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/frontdesk-dashboard"
+              element={
+                <ProtectedRoute>
+                  <FrontDeskDashboard />
                 </ProtectedRoute>
               }
             />
