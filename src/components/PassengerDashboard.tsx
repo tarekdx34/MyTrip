@@ -20,6 +20,7 @@ import {
   User,
   CreditCard,
 } from "lucide-react";
+import { dashboardAPI } from "../services/api";
 
 // Mock API interfaces
 interface Flight {
@@ -441,7 +442,7 @@ const PassengerDashboard: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const flightData = await mockAPI.getFlights(params);
+      const flightData = await dashboardAPI.getFlights(params);
       setFlights(flightData);
     } catch (err) {
       setError("Failed to load flights");
@@ -452,7 +453,7 @@ const PassengerDashboard: React.FC = () => {
 
   const loadBookings = async () => {
     try {
-      const bookingData = await mockAPI.getBookings(101); // Mock user ID
+      const bookingData = await dashboardAPI.getBookings();
       setBookings(bookingData);
     } catch (err) {
       console.error("Failed to load bookings:", err);
@@ -555,7 +556,7 @@ const PassengerDashboard: React.FC = () => {
     if (!profile) return;
 
     try {
-      const result = await mockAPI.updateProfile(101, profile);
+      const result = await dashboardAPI.updateProfile(101, profile);
       alert(result.message);
     } catch (err) {
       alert("Failed to update profile");
@@ -618,7 +619,7 @@ const PassengerDashboard: React.FC = () => {
             <div className="flex items-center space-x-4">
               <div className="text-right">
                 <p className="text-sm font-medium text-gray-900">
-                  Welcome, Ahmed Ali
+                  Welcome, {profile ? profile.name : "Passenger"}
                 </p>
                 <p className="text-xs text-gray-500">Passenger</p>
               </div>
