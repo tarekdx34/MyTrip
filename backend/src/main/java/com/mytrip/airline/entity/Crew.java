@@ -16,9 +16,9 @@ public class Crew {
 
     private String employeeNumber;
     
-    private String licenseNumber; // This was missing!
+    private String licenseNumber;
 
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = PositionConverter.class)
     @Column(name = "position")
     private Position position;
     
