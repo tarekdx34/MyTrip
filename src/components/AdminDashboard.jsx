@@ -1,6 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import mockAPI from "../services/mockAPI";
+import {
+  flightAPI,
+  userAPI,
+  aircraftAPI,
+  airportAPI,
+  bookingAPI,
+  passengerAPI,
+  adminAPI,
+  crewAPI,
+  frontDeskAPI,
+  authAPI, // Added missing import
+} from "../services/api";
 import {
   LineChart,
   Line,
@@ -39,20 +50,19 @@ const AdminDashboard = () => {
   const [activeSection, setActiveSection] = useState("flights");
   const [flights, setFlights] = useState([]);
   const [users, setUsers] = useState([]);
-  const [demandReports, setDemandReports] = useState([]);
   const [aircrafts, setAircrafts] = useState([]);
   const [airports, setAirports] = useState([]);
-  const [payments, setPayments] = useState([]);
-  const [flightStats, setFlightStats] = useState([]);
-  const [userActivity, setUserActivity] = useState([]);
-  const [revenueReports, setRevenueReports] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [passengers, setPassengers] = useState([]);
+  const [crew, setCrew] = useState([]);
+  const [admins, setAdmins] = useState([]);
+  const [frontDesk, setFrontDesk] = useState([]);
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState(null);
 
   // Modal states
   const [showAddFlightModal, setShowAddFlightModal] = useState(false);
   const [showEditFlightModal, setShowEditFlightModal] = useState(false);
-  const [showCrewModal, setShowCrewModal] = useState(false);
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
   const [showAddAircraftModal, setShowAddAircraftModal] = useState(false);
   const [showEditAircraftModal, setShowEditAircraftModal] = useState(false);
@@ -62,29 +72,49 @@ const AdminDashboard = () => {
   const [selectedAircraft, setSelectedAircraft] = useState(null);
   const [selectedAirport, setSelectedAirport] = useState(null);
 
+  // Search and filter states
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+
   // Form states
   const [flightForm, setFlightForm] = useState({
-    origin: "",
-    destination: "",
+    flightNumber: "",
+    aircraftID: "",
+    departureAirportId: "",
+    arrivalAirportId: "",
     departureTime: "",
     arrivalTime: "",
+    duration: "",
+    price: "",
+    availableSeats: "",
+    status: "Scheduled",
   });
-  const [crewForm, setCrewForm] = useState({
-    flightId: "",
-    crew: "",
-  });
+
   const [userForm, setUserForm] = useState({
     name: "",
     email: "",
-    role: "",
+    password: "defaultpass123",
+    userType: "passenger",
+    passportNumber: "",
+    nationality: "",
+    dateOfBirth: "",
+    employeeNumber: "",
+    accessLevel: "",
+    position: "",
+    licenseNumber: "",
+    department: "",
   });
+
   const [aircraftForm, setAircraftForm] = useState({
-    aircraftId: "",
-    model: "",
+    aircraftModel: "",
+    manufacturer: "",
+    registration: "",
     capacity: "",
+    airportId: "",
   });
+
   const [airportForm, setAirportForm] = useState({
-    code: "",
+    airportCode: "",
     name: "",
     city: "",
     country: "",
@@ -101,34 +131,36 @@ const AdminDashboard = () => {
       const [
         flightsData,
         usersData,
-        reportsData,
         aircraftsData,
         airportsData,
-        paymentsData,
-        flightStatsData,
-        userActivityData,
-        revenueReportsData,
+        bookingsData,
+        passengersData,
+        crewData,
+        adminsData,
+        frontDeskData,
       ] = await Promise.all([
-        mockAPI.getFlights(),
-        mockAPI.getUsers(),
-        mockAPI.getDemandReports(),
-        mockAPI.getAircrafts(),
-        mockAPI.getAirports(),
-        mockAPI.getPayments(),
-        mockAPI.getFlightStats(),
-        mockAPI.getUserActivity(),
-        mockAPI.getRevenueReports(),
+        flightAPI.getAllFlights().catch(() => []),
+        userAPI.getAllUsers().catch(() => []),
+        aircraftAPI.getAllAircraft().catch(() => []),
+        airportAPI.getAllAirports().catch(() => []),
+        bookingAPI.getAllBookings().catch(() => []),
+        passengerAPI.getAllPassengers().catch(() => []),
+        crewAPI.getAllCrew().catch(() => []),
+        adminAPI.getAllAdmins().catch(() => []),
+        frontDeskAPI.getAllFrontDesk().catch(() => []),
       ]);
+
       setFlights(flightsData);
       setUsers(usersData);
-      setDemandReports(reportsData);
       setAircrafts(aircraftsData);
       setAirports(airportsData);
-      setPayments(paymentsData);
-      setFlightStats(flightStatsData);
-      setUserActivity(userActivityData);
-      setRevenueReports(revenueReportsData);
+      setBookings(bookingsData);
+      setPassengers(passengersData);
+      setCrew(crewData);
+      setAdmins(adminsData);
+      setFrontDesk(frontDeskData);
     } catch (error) {
+      console.error("Failed to load data:", error);
       showAlert("Failed to load data", "error");
     } finally {
       setLoading(false);
@@ -137,39 +169,71 @@ const AdminDashboard = () => {
 
   const showAlert = (message, type = "success") => {
     setAlert({ message, type });
-    setTimeout(() => setAlert(null), 3000);
+    setTimeout(() => setAlert(null), 5000);
   };
 
   const formatDateTime = (dateString) => {
+    if (!dateString) return "N/A";
     return new Date(dateString).toLocaleString();
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(amount);
   };
 
   // Flight Management
   const handleAddFlight = async () => {
     if (
-      !flightForm.origin ||
-      !flightForm.destination ||
+      !flightForm.flightNumber ||
+      !flightForm.aircraftID ||
+      !flightForm.departureAirportId ||
+      !flightForm.arrivalAirportId ||
       !flightForm.departureTime ||
       !flightForm.arrivalTime
     ) {
-      showAlert("Please fill all fields", "error");
+      showAlert("Please fill all required fields", "error");
       return;
     }
 
     setLoading(true);
     try {
-      const result = await mockAPI.createFlight(flightForm);
-      showAlert(`Flight ${result.flightId} created successfully`);
+      const selectedAircraft = aircrafts.find(
+        (a) => a.aircraftID === parseInt(flightForm.aircraftID)
+      );
+      const departureAirport = airports.find(
+        (a) => a.airportID === parseInt(flightForm.departureAirportId)
+      );
+      const arrivalAirport = airports.find(
+        (a) => a.airportID === parseInt(flightForm.arrivalAirportId)
+      );
+
+      const newFlight = {
+        flightNumber: flightForm.flightNumber,
+        aircraft: selectedAircraft,
+        departureAirport: departureAirport,
+        arrivalAirport: arrivalAirport,
+        departureTime: flightForm.departureTime,
+        arrivalTime: flightForm.arrivalTime,
+        duration: parseInt(flightForm.duration) || 120,
+        price: parseFloat(flightForm.price) || 500,
+        availableSeats:
+          parseInt(flightForm.availableSeats) ||
+          selectedAircraft?.capacity ||
+          150,
+        status: flightForm.status,
+      };
+
+      const result = await flightAPI.createFlight(newFlight);
+      showAlert(`Flight ${result.flightNumber} created successfully`);
       setShowAddFlightModal(false);
-      setFlightForm({
-        origin: "",
-        destination: "",
-        departureTime: "",
-        arrivalTime: "",
-      });
+      resetFlightForm();
       loadAllData();
     } catch (error) {
-      showAlert("Failed to create flight", "error");
+      console.error("Failed to create flight:", error);
+      showAlert(error.message || "Failed to create flight", "error");
     } finally {
       setLoading(false);
     }
@@ -180,85 +244,152 @@ const AdminDashboard = () => {
 
     setLoading(true);
     try {
-      await mockAPI.updateFlight(selectedFlight.flightId, flightForm);
+      const updatedFlight = {
+        flightNumber: flightForm.flightNumber,
+        departureTime: flightForm.departureTime,
+        arrivalTime: flightForm.arrivalTime,
+        duration: parseInt(flightForm.duration),
+        price: parseFloat(flightForm.price),
+        availableSeats: parseInt(flightForm.availableSeats),
+        status: flightForm.status,
+      };
+
+      await flightAPI.updateFlight(selectedFlight.flightID, updatedFlight);
       showAlert("Flight updated successfully");
       setShowEditFlightModal(false);
       setSelectedFlight(null);
-      setFlightForm({
-        origin: "",
-        destination: "",
-        departureTime: "",
-        arrivalTime: "",
-      });
+      resetFlightForm();
       loadAllData();
     } catch (error) {
-      showAlert("Failed to update flight", "error");
+      console.error("Failed to update flight:", error);
+      showAlert(error.message || "Failed to update flight", "error");
     } finally {
       setLoading(false);
     }
   };
 
   const handleDeleteFlight = async (flightId) => {
-    if (!confirm("Are you sure you want to cancel this flight?")) return;
+    if (!confirm("Are you sure you want to delete this flight?")) return;
 
     setLoading(true);
     try {
-      await mockAPI.deleteFlight(flightId);
-      showAlert("Flight cancelled successfully");
+      await flightAPI.deleteFlight(flightId);
+      showAlert("Flight deleted successfully");
       loadAllData();
     } catch (error) {
-      showAlert("Failed to cancel flight", "error");
+      console.error("Failed to delete flight:", error);
+      showAlert(error.message || "Failed to delete flight", "error");
     } finally {
       setLoading(false);
     }
   };
 
-  const openEditModal = (flight) => {
+  const handleUpdateFlightStatus = async (flightId, newStatus) => {
+    setLoading(true);
+    try {
+      await flightAPI.updateFlightStatus(flightId, newStatus);
+      showAlert(`Flight status updated to ${newStatus}`);
+      loadAllData();
+    } catch (error) {
+      console.error("Failed to update flight status:", error);
+      showAlert(error.message || "Failed to update flight status", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openEditFlightModal = (flight) => {
     setSelectedFlight(flight);
     setFlightForm({
-      origin: flight.origin,
-      destination: flight.destination,
-      departureTime: flight.departureTime.slice(0, 16),
-      arrivalTime: flight.arrivalTime.slice(0, 16),
+      flightNumber: flight.flightNumber,
+      aircraftID: flight.aircraft?.aircraftID || "",
+      departureAirportId: flight.departureAirport?.airportID || "",
+      arrivalAirportId: flight.arrivalAirport?.airportID || "",
+      departureTime: flight.departureTime
+        ? new Date(flight.departureTime).toISOString().slice(0, 16)
+        : "",
+      arrivalTime: flight.arrivalTime
+        ? new Date(flight.arrivalTime).toISOString().slice(0, 16)
+        : "",
+      duration: flight.duration || "",
+      price: flight.price || "",
+      availableSeats: flight.availableSeats || "",
+      status: flight.status || "Scheduled",
     });
     setShowEditFlightModal(true);
   };
 
+  const resetFlightForm = () => {
+    setFlightForm({
+      flightNumber: "",
+      aircraftID: "",
+      departureAirportId: "",
+      arrivalAirportId: "",
+      departureTime: "",
+      arrivalTime: "",
+      duration: "",
+      price: "",
+      availableSeats: "",
+      status: "Scheduled",
+    });
+  };
+
   // User Management
   const handleCreateUser = async () => {
-    if (!userForm.name || !userForm.email || !userForm.role) {
-      showAlert("Please fill all fields", "error");
+    if (!userForm.name || !userForm.email || !userForm.userType) {
+      showAlert("Please fill all required fields", "error");
       return;
     }
 
     setLoading(true);
     try {
-      const result = await mockAPI.createUser(userForm);
-      showAlert(`User ${result.userId} created successfully`);
+      // Check email availability first
+      const isEmailAvailable = await userAPI.checkEmailAvailable(
+        userForm.email
+      );
+      if (!isEmailAvailable) {
+        showAlert("Email address is already in use", "error");
+        setLoading(false);
+        return;
+      }
+
+      const signupData = {
+        name: userForm.name,
+        email: userForm.email,
+        password: userForm.password,
+        userType: userForm.userType,
+      };
+
+      // Add type-specific fields
+      if (userForm.userType === "passenger") {
+        if (userForm.passportNumber)
+          signupData.passportNumber = userForm.passportNumber;
+        if (userForm.nationality) signupData.nationality = userForm.nationality;
+        if (userForm.dateOfBirth) signupData.dateOfBirth = userForm.dateOfBirth;
+      } else if (userForm.userType === "admin") {
+        if (userForm.employeeNumber)
+          signupData.employeeNumber = userForm.employeeNumber;
+        if (userForm.accessLevel) signupData.accessLevel = userForm.accessLevel;
+      } else if (userForm.userType === "crew") {
+        if (userForm.employeeNumber)
+          signupData.employeeNumber = userForm.employeeNumber;
+        if (userForm.position) signupData.position = userForm.position;
+        if (userForm.licenseNumber)
+          signupData.licenseNumber = userForm.licenseNumber;
+      } else if (userForm.userType === "front_desk") {
+        if (userForm.employeeNumber)
+          signupData.employeeNumber = userForm.employeeNumber;
+        if (userForm.department) signupData.department = userForm.department;
+      }
+
+      await authAPI.signup(signupData);
+      showAlert("User created successfully");
       setShowCreateUserModal(false);
-      setUserForm({
-        name: "",
-        email: "",
-        role: "",
-      });
+      resetUserForm();
       loadAllData();
     } catch (error) {
-      showAlert("Failed to create user", "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSuspendUser = async (userId) => {
-    if (!confirm("Are you sure you want to suspend this user?")) return;
-
-    setLoading(true);
-    try {
-      await mockAPI.suspendUser(userId);
-      showAlert("User suspended successfully");
-      loadAllData();
-    } catch (error) {
-      showAlert("Failed to suspend user", "error");
+      console.error("Failed to create user:", error);
+      showAlert(error.message || "Failed to create user", "error");
     } finally {
       setLoading(false);
     }
@@ -269,151 +400,125 @@ const AdminDashboard = () => {
 
     setLoading(true);
     try {
-      await mockAPI.deleteUser(userId);
+      await userAPI.deleteUser(userId);
       showAlert("User deleted successfully");
       loadAllData();
     } catch (error) {
-      showAlert("Failed to delete user", "error");
+      console.error("Failed to delete user:", error);
+      showAlert(error.message || "Failed to delete user", "error");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRestoreUser = async (userId) => {
-    if (!confirm("Are you sure you want to restore this user?")) return;
-
-    setLoading(true);
-    try {
-      await mockAPI.restoreUser(userId);
-      showAlert("User restored successfully");
-      loadAllData();
-    } catch (error) {
-      showAlert("Failed to restore user", "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Crew Assignment
-  const handleAssignCrew = async () => {
-    if (!crewForm.flightId || !crewForm.crew) {
-      showAlert("Please select a flight and enter crew names", "error");
-      return;
-    }
-
-    const crewArray = crewForm.crew.split(",").map((name) => name.trim());
-    setLoading(true);
-    try {
-      await mockAPI.assignCrew(crewForm.flightId, crewArray);
-      showAlert("Crew assigned successfully");
-      setShowCrewModal(false);
-      setCrewForm({ flightId: "", crew: "" });
-      loadAllData();
-    } catch (error) {
-      showAlert("Failed to assign crew", "error");
-    } finally {
-      setLoading(false);
-    }
+  const resetUserForm = () => {
+    setUserForm({
+      name: "",
+      email: "",
+      password: "defaultpass123",
+      userType: "passenger",
+      passportNumber: "",
+      nationality: "",
+      dateOfBirth: "",
+      employeeNumber: "",
+      accessLevel: "",
+      position: "",
+      licenseNumber: "",
+      department: "",
+    });
   };
 
   // Aircraft Management
-  const handleAddAircraft = () => {
+  const handleAddAircraft = async () => {
     if (
-      !aircraftForm.aircraftId ||
-      !aircraftForm.model ||
+      !aircraftForm.aircraftModel ||
+      !aircraftForm.manufacturer ||
+      !aircraftForm.registration ||
       !aircraftForm.capacity
     ) {
-      showAlert("Please fill all fields", "error");
+      showAlert("Please fill all required fields", "error");
       return;
     }
 
     setLoading(true);
     try {
-      // Get existing aircrafts from localStorage
-      const storedAircrafts =
-        JSON.parse(localStorage.getItem("aircrafts")) || [];
-      // Add new aircraft
       const newAircraft = {
-        aircraftId: aircraftForm.aircraftId,
-        model: aircraftForm.model,
-        capacity: aircraftForm.capacity,
-        status: "Active",
+        aircraftModel: aircraftForm.aircraftModel,
+        manufacturer: aircraftForm.manufacturer,
+        registration: aircraftForm.registration,
+        capacity: parseInt(aircraftForm.capacity),
+        airport: aircraftForm.airportId
+          ? airports.find(
+              (a) => a.airportID === parseInt(aircraftForm.airportId)
+            )
+          : null,
       };
-      const updatedAircrafts = [...storedAircrafts, newAircraft];
-      // Save back to localStorage
-      localStorage.setItem("aircrafts", JSON.stringify(updatedAircrafts));
-      // Update state
-      setAircrafts(updatedAircrafts);
-      showAlert(`Aircraft ${newAircraft.aircraftId} added successfully`);
+
+      const result = await aircraftAPI.createAircraft(newAircraft);
+      showAlert(`Aircraft ${result.registration} added successfully`);
       setShowAddAircraftModal(false);
-      setAircraftForm({
-        aircraftId: "",
-        model: "",
-        capacity: "",
-      });
+      resetAircraftForm();
+      loadAllData();
     } catch (error) {
-      showAlert("Failed to add aircraft", "error");
+      console.error("Failed to add aircraft:", error);
+      showAlert(error.message || "Failed to add aircraft", "error");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEditAircraft = () => {
+  const handleUpdateAircraft = async () => {
     if (!selectedAircraft) return;
 
     setLoading(true);
     try {
-      // Get existing aircrafts from localStorage
-      const storedAircrafts =
-        JSON.parse(localStorage.getItem("aircrafts")) || [];
-      // Update the selected aircraft
-      const updatedAircrafts = storedAircrafts.map((aircraft) =>
-        aircraft.aircraftId === selectedAircraft.aircraftId
-          ? {
-              ...aircraft,
-              model: aircraftForm.model,
-              capacity: aircraftForm.capacity,
-            }
-          : aircraft
+      const updatedAircraft = {
+        aircraftModel: aircraftForm.aircraftModel,
+        manufacturer: aircraftForm.manufacturer,
+        registration: aircraftForm.registration,
+        capacity: parseInt(aircraftForm.capacity),
+      };
+
+      await aircraftAPI.updateAircraft(
+        selectedAircraft.aircraftID,
+        updatedAircraft
       );
-      // Save back to localStorage
-      localStorage.setItem("aircrafts", JSON.stringify(updatedAircrafts));
-      // Update state
-      setAircrafts(updatedAircrafts);
+
+      // If airport assignment changed, handle separately
+      if (
+        aircraftForm.airportId &&
+        aircraftForm.airportId !== selectedAircraft.airport?.airportID
+      ) {
+        await aircraftAPI.assignAircraftToAirport(
+          selectedAircraft.aircraftID,
+          parseInt(aircraftForm.airportId)
+        );
+      }
+
       showAlert("Aircraft updated successfully");
       setShowEditAircraftModal(false);
       setSelectedAircraft(null);
-      setAircraftForm({
-        aircraftId: "",
-        model: "",
-        capacity: "",
-      });
+      resetAircraftForm();
+      loadAllData();
     } catch (error) {
-      showAlert("Failed to update aircraft", "error");
+      console.error("Failed to update aircraft:", error);
+      showAlert(error.message || "Failed to update aircraft", "error");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeleteAircraft = (aircraftId) => {
+  const handleDeleteAircraft = async (aircraftId) => {
     if (!confirm("Are you sure you want to delete this aircraft?")) return;
 
     setLoading(true);
     try {
-      // Get existing aircrafts from localStorage
-      const storedAircrafts =
-        JSON.parse(localStorage.getItem("aircrafts")) || [];
-      // Remove the aircraft
-      const updatedAircrafts = storedAircrafts.filter(
-        (aircraft) => aircraft.aircraftId !== aircraftId
-      );
-      // Save back to localStorage
-      localStorage.setItem("aircrafts", JSON.stringify(updatedAircrafts));
-      // Update state
-      setAircrafts(updatedAircrafts);
+      await aircraftAPI.deleteAircraft(aircraftId);
       showAlert("Aircraft deleted successfully");
+      loadAllData();
     } catch (error) {
-      showAlert("Failed to delete aircraft", "error");
+      console.error("Failed to delete aircraft:", error);
+      showAlert(error.message || "Failed to delete aircraft", "error");
     } finally {
       setLoading(false);
     }
@@ -422,100 +527,95 @@ const AdminDashboard = () => {
   const openEditAircraftModal = (aircraft) => {
     setSelectedAircraft(aircraft);
     setAircraftForm({
-      aircraftId: aircraft.aircraftId,
-      model: aircraft.model,
-      capacity: aircraft.capacity,
+      aircraftModel: aircraft.aircraftModel,
+      manufacturer: aircraft.manufacturer,
+      registration: aircraft.registration,
+      capacity: aircraft.capacity.toString(),
+      airportId: aircraft.airport?.airportID || "",
     });
     setShowEditAircraftModal(true);
+  };
+
+  const resetAircraftForm = () => {
+    setAircraftForm({
+      aircraftModel: "",
+      manufacturer: "",
+      registration: "",
+      capacity: "",
+      airportId: "",
+    });
   };
 
   // Airport Management
   const handleAddAirport = async () => {
     if (
-      !airportForm.code ||
+      !airportForm.airportCode ||
       !airportForm.name ||
       !airportForm.city ||
       !airportForm.country
     ) {
-      showAlert("Please fill all fields", "error");
+      showAlert("Please fill all required fields", "error");
       return;
     }
 
     setLoading(true);
     try {
-      const result = await mockAPI.createAirport(airportForm);
-      showAlert(`Airport ${result.code} created successfully`);
+      const newAirport = {
+        airportCode: airportForm.airportCode.toUpperCase(),
+        name: airportForm.name,
+        city: airportForm.city,
+        country: airportForm.country,
+      };
+
+      const result = await airportAPI.createAirport(newAirport);
+      showAlert(`Airport ${result.airportCode} created successfully`);
       setShowAddAirportModal(false);
-      setAirportForm({
-        code: "",
-        name: "",
-        city: "",
-        country: "",
-      });
+      resetAirportForm();
       loadAllData();
     } catch (error) {
-      showAlert("Failed to create airport", "error");
+      console.error("Failed to create airport:", error);
+      showAlert(error.message || "Failed to create airport", "error");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEditAirport = () => {
+  const handleUpdateAirport = async () => {
     if (!selectedAirport) return;
 
     setLoading(true);
     try {
-      // Get existing airports from localStorage
-      const storedAirports = JSON.parse(localStorage.getItem("airports")) || [];
-      // Update the selected airport
-      const updatedAirports = storedAirports.map((airport) =>
-        airport.code === selectedAirport.code
-          ? {
-              ...airport,
-              name: airportForm.name,
-              city: airportForm.city,
-              country: airportForm.country,
-            }
-          : airport
-      );
-      // Save back to localStorage
-      localStorage.setItem("airports", JSON.stringify(updatedAirports));
-      // Update state
-      setAirports(updatedAirports);
+      const updatedAirport = {
+        name: airportForm.name,
+        city: airportForm.city,
+        country: airportForm.country,
+      };
+
+      await airportAPI.updateAirport(selectedAirport.airportID, updatedAirport);
       showAlert("Airport updated successfully");
       setShowEditAirportModal(false);
       setSelectedAirport(null);
-      setAirportForm({
-        code: "",
-        name: "",
-        city: "",
-        country: "",
-      });
+      resetAirportForm();
+      loadAllData();
     } catch (error) {
-      showAlert("Failed to update airport", "error");
+      console.error("Failed to update airport:", error);
+      showAlert(error.message || "Failed to update airport", "error");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeleteAirport = (airportCode) => {
+  const handleDeleteAirport = async (airportId) => {
     if (!confirm("Are you sure you want to delete this airport?")) return;
 
     setLoading(true);
     try {
-      // Get existing airports from localStorage
-      const storedAirports = JSON.parse(localStorage.getItem("airports")) || [];
-      // Remove the airport
-      const updatedAirports = storedAirports.filter(
-        (airport) => airport.code !== airportCode
-      );
-      // Save back to localStorage
-      localStorage.setItem("airports", JSON.stringify(updatedAirports));
-      // Update state
-      setAirports(updatedAirports);
+      await airportAPI.deleteAirport(airportId);
       showAlert("Airport deleted successfully");
+      loadAllData();
     } catch (error) {
-      showAlert("Failed to delete airport", "error");
+      console.error("Failed to delete airport:", error);
+      showAlert(error.message || "Failed to delete airport", "error");
     } finally {
       setLoading(false);
     }
@@ -524,7 +624,7 @@ const AdminDashboard = () => {
   const openEditAirportModal = (airport) => {
     setSelectedAirport(airport);
     setAirportForm({
-      code: airport.code,
+      airportCode: airport.airportCode,
       name: airport.name,
       city: airport.city,
       country: airport.country,
@@ -532,1048 +632,856 @@ const AdminDashboard = () => {
     setShowEditAirportModal(true);
   };
 
-  const getDemandLevelColor = (level) => {
-    switch (level) {
-      case "High":
-        return "bg-red-100 text-red-800";
-      case "Medium":
-        return "bg-yellow-100 text-yellow-800";
-      case "Low":
-        return "bg-green-100 text-green-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
+  const resetAirportForm = () => {
+    setAirportForm({
+      airportCode: "",
+      name: "",
+      city: "",
+      country: "",
+    });
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {/* Sidebar */}
-      <div className="w-64 bg-white shadow-lg">
-        <div className="p-6 border-b">
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={() => navigate("/")}
-              className="flex items-center space-x-3 hover:opacity-80 transition-opacity"
-            >
-              <Plane className="h-8 w-8 text-blue-600" />
-              <h1 className="text-xl font-bold text-gray-900">MY TRIP Admin</h1>
-            </button>
-          </div>
+  // Search and filter functions
+  const filterFlights = () => {
+    return flights.filter((flight) => {
+      const matchesSearch =
+        !searchTerm ||
+        flight.flightNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        flight.departureAirport?.name
+          ?.toLowerCase()
+          .includes(searchTerm.toLowerCase()) ||
+        flight.arrivalAirport?.name
+          ?.toLowerCase()
+          .includes(searchTerm.toLowerCase());
+
+      const matchesStatus = !statusFilter || flight.status === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  };
+
+  const filterUsers = () => {
+    return users.filter((user) => {
+      const matchesSearch =
+        !searchTerm ||
+        user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email?.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesType = !statusFilter || user.userType === statusFilter;
+
+      return matchesSearch && matchesType;
+    });
+  };
+
+  // Calculate statistics for dashboard
+  const stats = {
+    totalFlights: flights.length,
+    activeFlights: flights.filter(
+      (f) => f.status === "In-Flight" || f.status === "Scheduled"
+    ).length,
+    totalUsers: users.length,
+    totalBookings: bookings.length,
+    confirmedBookings: bookings.filter((b) => b.status === "confirmed").length,
+    revenue: bookings.reduce(
+      (sum, booking) => sum + (booking.totalAmount || 0),
+      0
+    ),
+    totalAircraft: aircrafts.length,
+    totalAirports: airports.length,
+  };
+
+  // Chart data
+  const flightStatusData = [
+    {
+      name: "Scheduled",
+      value: flights.filter((f) => f.status === "Scheduled").length,
+    },
+    {
+      name: "In-Flight",
+      value: flights.filter((f) => f.status === "In-Flight").length,
+    },
+    {
+      name: "Completed",
+      value: flights.filter((f) => f.status === "Completed").length,
+    },
+    {
+      name: "Cancelled",
+      value: flights.filter((f) => f.status === "Cancelled").length,
+    },
+    {
+      name: "Delayed",
+      value: flights.filter((f) => f.status === "Delayed").length,
+    },
+  ];
+
+  const userTypeData = [
+    {
+      name: "Passengers",
+      value: users.filter((u) => u.userType === "passenger").length,
+    },
+    { name: "Crew", value: users.filter((u) => u.userType === "crew").length },
+    {
+      name: "Admin",
+      value: users.filter((u) => u.userType === "admin").length,
+    },
+    {
+      name: "Front Desk",
+      value: users.filter((u) => u.userType === "front_desk").length,
+    },
+  ];
+
+  const handleLogout = () => {
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("userRole");
+    localStorage.removeItem("userId");
+    navigate("/login");
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="flex items-center space-x-2">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <span className="text-lg font-medium text-gray-700">Loading...</span>
         </div>
-
-        <nav className="p-4">
-          <div className="space-y-2">
-            <button
-              onClick={() => setActiveSection("flights")}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                activeSection === "flights"
-                  ? "bg-blue-100 text-blue-700"
-                  : "text-gray-700 hover:bg-gray-100"
-              }`}
-            >
-              <Plane className="h-5 w-5" />
-              <span>Manage Flights</span>
-            </button>
-
-            <button
-              onClick={() => setActiveSection("users")}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                activeSection === "users"
-                  ? "bg-blue-100 text-blue-700"
-                  : "text-gray-700 hover:bg-gray-100"
-              }`}
-            >
-              <Users className="h-5 w-5" />
-              <span>Manage Users</span>
-            </button>
-
-            <button
-              onClick={() => setActiveSection("crew")}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                activeSection === "crew"
-                  ? "bg-blue-100 text-blue-700"
-                  : "text-gray-700 hover:bg-gray-100"
-              }`}
-            >
-              <UserCheck className="h-5 w-5" />
-              <span>Crew Assignment</span>
-            </button>
-
-            <button
-              onClick={() => setActiveSection("reports")}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                activeSection === "reports"
-                  ? "bg-blue-100 text-blue-700"
-                  : "text-gray-700 hover:bg-gray-100"
-              }`}
-            >
-              <BarChart3 className="h-5 w-5" />
-              <span>Reports</span>
-            </button>
-
-            <button
-              onClick={() => setActiveSection("aircrafts")}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                activeSection === "aircrafts"
-                  ? "bg-blue-100 text-blue-700"
-                  : "text-gray-700 hover:bg-gray-100"
-              }`}
-            >
-              <Plane className="h-5 w-5" />
-              <span>Manage Aircrafts</span>
-            </button>
-
-            <button
-              onClick={() => setActiveSection("airports")}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                activeSection === "airports"
-                  ? "bg-blue-100 text-blue-700"
-                  : "text-gray-700 hover:bg-gray-100"
-              }`}
-            >
-              <Building className="h-5 w-5" />
-              <span>Manage Airports</span>
-            </button>
-
-            <button
-              onClick={() => setActiveSection("payments")}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                activeSection === "payments"
-                  ? "bg-blue-100 text-blue-700"
-                  : "text-gray-700 hover:bg-gray-100"
-              }`}
-            >
-              <CreditCard className="h-5 w-5" />
-              <span>Payment Management</span>
-            </button>
-
-            <button
-              onClick={() => setActiveSection("statistics")}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                activeSection === "statistics"
-                  ? "bg-blue-100 text-blue-700"
-                  : "text-gray-700 hover:bg-gray-100"
-              }`}
-            >
-              <BarChart3 className="h-5 w-5" />
-              <span>Flight Statistics</span>
-            </button>
-
-            <button
-              onClick={() => setActiveSection("activity")}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                activeSection === "activity"
-                  ? "bg-blue-100 text-blue-700"
-                  : "text-gray-700 hover:bg-gray-100"
-              }`}
-            >
-              <Users className="h-5 w-5" />
-              <span>User Activity</span>
-            </button>
-
-            <button
-              onClick={() => setActiveSection("revenue")}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                activeSection === "revenue"
-                  ? "bg-blue-100 text-blue-700"
-                  : "text-gray-700 hover:bg-gray-100"
-              }`}
-            >
-              <BarChart3 className="h-5 w-5" />
-              <span>Revenue Reports</span>
-            </button>
-          </div>
-        </nav>
       </div>
+    );
+  }
 
-      {/* Main Content */}
-      <div className="flex-1">
-        {/* Header */}
-        <div className="bg-white shadow-sm border-b">
-          <div className="px-6 py-4 flex justify-between items-center">
-            <h2 className="text-2xl font-bold text-gray-900">
-              {activeSection === "flights" && "Flight Management"}
-              {activeSection === "users" && "User Management"}
-              {activeSection === "crew" && "Crew Assignment"}
-              {activeSection === "reports" && "Demand Reports"}
-              {activeSection === "aircrafts" && "Aircraft Management"}
-              {activeSection === "airports" && "Airport Management"}
-              {activeSection === "payments" && "Payment Management"}
-              {activeSection === "statistics" && "Flight Statistics"}
-              {activeSection === "activity" && "User Activity"}
-              {activeSection === "revenue" && "Revenue Reports"}
-            </h2>
-            <button
-              onClick={() => {
-                if (confirm("Are you sure you want to log out?")) {
-                  navigate("/");
-                }
-              }}
-              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-              title="Logout"
-            >
-              <LogOut className="h-5 w-5" />
-            </button>
-          </div>
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Alert */}
+      {alert && (
+        <div
+          className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${
+            alert.type === "success" ? "bg-green-500" : "bg-red-500"
+          } text-white flex items-center space-x-2`}
+        >
+          {alert.type === "success" ? (
+            <CheckCircle size={20} />
+          ) : (
+            <AlertCircle size={20} />
+          )}
+          <span>{alert.message}</span>
+          <button onClick={() => setAlert(null)}>
+            <X size={20} />
+          </button>
         </div>
+      )}
 
-        {/* Alert */}
-        {alert && (
-          <div className="mx-6 mt-4">
-            <div
-              className={`p-4 rounded-lg flex items-center space-x-2 ${
-                alert.type === "error"
-                  ? "bg-red-50 border border-red-200"
-                  : "bg-green-50 border border-green-200"
-              }`}
-            >
-              {alert.type === "error" ? (
-                <AlertCircle className="h-5 w-5 text-red-500" />
-              ) : (
-                <CheckCircle className="h-5 w-5 text-green-500" />
-              )}
-              <span
-                className={
-                  alert.type === "error" ? "text-red-700" : "text-green-700"
-                }
+      <div className="flex">
+        {/* Sidebar */}
+        <div className="w-64 bg-white shadow-lg h-screen sticky top-0">
+          <div className="p-6">
+            <h1 className="text-2xl font-bold text-gray-800 mb-8">
+              Admin Panel
+            </h1>
+
+            <nav className="space-y-2">
+              <button
+                onClick={() => setActiveSection("dashboard")}
+                className={`w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${
+                  activeSection === "dashboard"
+                    ? "bg-blue-100 text-blue-600"
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
               >
-                {alert.message}
-              </span>
-            </div>
-          </div>
-        )}
+                <BarChart3 className="h-5 w-5 mr-3" />
+                Dashboard
+              </button>
 
-        {/* Summary Cards */}
-        <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <Plane className="h-8 w-8 text-blue-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">
-                  Total Flights
-                </p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {flights.length}
-                </p>
-              </div>
-            </div>
-          </div>
+              <button
+                onClick={() => setActiveSection("flights")}
+                className={`w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${
+                  activeSection === "flights"
+                    ? "bg-blue-100 text-blue-600"
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                <Plane className="h-5 w-5 mr-3" />
+                Flights
+              </button>
 
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <Users className="h-8 w-8 text-green-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Users</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {users.length}
-                </p>
-              </div>
-            </div>
-          </div>
+              <button
+                onClick={() => setActiveSection("users")}
+                className={`w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${
+                  activeSection === "users"
+                    ? "bg-blue-100 text-blue-600"
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                <Users className="h-5 w-5 mr-3" />
+                Users
+              </button>
 
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <UserCheck className="h-8 w-8 text-purple-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">
-                  Crew Assignments
-                </p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {flights.reduce(
-                    (total, flight) => total + flight.crew.length,
-                    0
-                  )}
-                </p>
-              </div>
+              <button
+                onClick={() => setActiveSection("aircraft")}
+                className={`w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${
+                  activeSection === "aircraft"
+                    ? "bg-blue-100 text-blue-600"
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                <Plane className="h-5 w-5 mr-3" />
+                Aircraft
+              </button>
+
+              <button
+                onClick={() => setActiveSection("airports")}
+                className={`w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${
+                  activeSection === "airports"
+                    ? "bg-blue-100 text-blue-600"
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                <Building className="h-5 w-5 mr-3" />
+                Airports
+              </button>
+
+              <button
+                onClick={() => setActiveSection("bookings")}
+                className={`w-full flex items-center px-4 py-3 text-left rounded-lg transition-colors ${
+                  activeSection === "bookings"
+                    ? "bg-blue-100 text-blue-600"
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                <CreditCard className="h-5 w-5 mr-3" />
+                Bookings
+              </button>
+            </nav>
+
+            <div className="mt-8 pt-8 border-t border-gray-200">
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center px-4 py-3 text-left rounded-lg text-red-600 hover:bg-red-50 transition-colors"
+              >
+                <LogOut className="h-5 w-5 mr-3" />
+                Logout
+              </button>
             </div>
           </div>
         </div>
 
-        {/* Content Sections */}
-        <div className="p-6">
-          {/* Flights Section */}
-          {activeSection === "flights" && (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Flight Management
-                </h3>
-                <button
-                  onClick={() => setShowAddFlightModal(true)}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Add Flight</span>
-                </button>
-              </div>
+        {/* Main Content */}
+        <div className="flex-1 p-8">
+          {activeSection === "dashboard" && (
+            <div>
+              <h2 className="text-3xl font-bold text-gray-800 mb-8">
+                Dashboard Overview
+              </h2>
 
-              <div className="bg-white rounded-lg shadow overflow-hidden">
-                <div className="overflow-x-auto">
-                  {loading ? (
-                    <div className="flex items-center justify-center py-12">
-                      <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                      <span className="ml-2 text-gray-600">
-                        Loading flights...
-                      </span>
+              {/* Stats Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div className="bg-white p-6 rounded-lg shadow">
+                  <div className="flex items-center">
+                    <div className="p-3 rounded-full bg-blue-100">
+                      <Plane className="h-6 w-6 text-blue-600" />
                     </div>
-                  ) : (
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Flight ID
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Route
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Departure
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Arrival
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Status
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {flights.map((flight) => (
-                          <tr
-                            key={flight.flightId}
-                            className="hover:bg-gray-50"
-                          >
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm font-medium text-gray-900">
-                                {flight.flightId}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {flight.origin} → {flight.destination}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {formatDateTime(flight.departureTime)}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {formatDateTime(flight.arrivalTime)}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                                {flight.status}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                              <button
-                                onClick={() => openEditModal(flight)}
-                                className="text-blue-600 hover:text-blue-900"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() =>
-                                  handleDeleteFlight(flight.flightId)
-                                }
-                                className="text-red-600 hover:text-red-900"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Users Section */}
-          {activeSection === "users" && (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  User Management
-                </h3>
-                <button
-                  onClick={() => setShowCreateUserModal(true)}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Create User</span>
-                </button>
-              </div>
-
-              <div className="bg-white rounded-lg shadow overflow-hidden">
-                <div className="overflow-x-auto">
-                  {loading ? (
-                    <div className="flex items-center justify-center py-12">
-                      <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                      <span className="ml-2 text-gray-600">
-                        Loading users...
-                      </span>
-                    </div>
-                  ) : (
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            User ID
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Name
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Email
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Role
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Status
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {users.map((user) => (
-                          <tr key={user.userId} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm font-medium text-gray-900">
-                                {user.userId}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {user.name}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-500">
-                                {user.email}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {user.role}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span
-                                className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                  user.status === "active"
-                                    ? "bg-green-100 text-green-800"
-                                    : "bg-red-100 text-red-800"
-                                }`}
-                              >
-                                {user.status}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                              {user.status === "active" ? (
-                                <button
-                                  onClick={() => handleSuspendUser(user.userId)}
-                                  className="text-yellow-600 hover:text-yellow-900"
-                                >
-                                  Suspend
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => handleRestoreUser(user.userId)}
-                                  className="text-green-600 hover:text-green-900"
-                                >
-                                  <RotateCcw className="h-4 w-4" />
-                                </button>
-                              )}
-                              <button
-                                onClick={() => handleDeleteUser(user.userId)}
-                                className="text-red-600 hover:text-red-900"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Crew Assignment Section */}
-          {activeSection === "crew" && (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Crew Assignment
-                </h3>
-                <button
-                  onClick={() => setShowCrewModal(true)}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Assign Crew</span>
-                </button>
-              </div>
-
-              <div className="grid gap-6">
-                {flights.map((flight) => (
-                  <div
-                    key={flight.flightId}
-                    className="bg-white rounded-lg shadow p-6"
-                  >
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center space-x-3">
-                        <Plane className="h-5 w-5 text-blue-600" />
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">
-                            {flight.flightId}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {flight.origin} → {flight.destination}
-                          </div>
-                        </div>
-                      </div>
-                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                        {flight.status}
-                      </span>
-                    </div>
-
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium text-gray-700">
-                        Assigned Crew:
-                      </h4>
-                      {flight.crew.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {flight.crew.map((crewMember, index) => (
-                            <span
-                              key={index}
-                              className="inline-flex px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded"
-                            >
-                              {crewMember}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-gray-500">
-                          No crew assigned
-                        </p>
-                      )}
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-600">
+                        Total Flights
+                      </p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {stats.totalFlights}
+                      </p>
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                </div>
 
-          {/* Reports Section */}
-          {activeSection === "reports" && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Demand Reports
-              </h3>
-
-              <div className="bg-white rounded-lg shadow overflow-hidden">
-                <div className="overflow-x-auto">
-                  {loading ? (
-                    <div className="flex items-center justify-center py-12">
-                      <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                      <span className="ml-2 text-gray-600">
-                        Loading reports...
-                      </span>
+                <div className="bg-white p-6 rounded-lg shadow">
+                  <div className="flex items-center">
+                    <div className="p-3 rounded-full bg-green-100">
+                      <Users className="h-6 w-6 text-green-600" />
                     </div>
-                  ) : (
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Route
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Demand Level
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Searches Without Direct Flight
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {demandReports.map((report, index) => (
-                          <tr key={index} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm font-medium text-gray-900">
-                                {report.route}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span
-                                className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getDemandLevelColor(
-                                  report.demandLevel
-                                )}`}
-                              >
-                                {report.demandLevel}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {report.searchesWithoutDirectFlight}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-600">
+                        Total Users
+                      </p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {stats.totalUsers}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-lg shadow">
+                  <div className="flex items-center">
+                    <div className="p-3 rounded-full bg-purple-100">
+                      <CreditCard className="h-6 w-6 text-purple-600" />
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-600">
+                        Total Bookings
+                      </p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {stats.totalBookings}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-lg shadow">
+                  <div className="flex items-center">
+                    <div className="p-3 rounded-full bg-yellow-100">
+                      <Building className="h-6 w-6 text-yellow-600" />
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-600">
+                        Revenue
+                      </p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {formatCurrency(stats.revenue)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Charts */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                <div className="bg-white p-6 rounded-lg shadow">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                    Flight Status Distribution
+                  </h3>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={flightStatusData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="value" fill="#3B82F6" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="bg-white p-6 rounded-lg shadow">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                    User Types
+                  </h3>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={userTypeData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="value" fill="#10B981" />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Aircrafts Section */}
-          {activeSection === "aircrafts" && (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-900">
+          {activeSection === "flights" && (
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-3xl font-bold text-gray-800">
+                  Flight Management
+                </h2>
+                <button
+                  onClick={() => setShowAddFlightModal(true)}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Flight
+                </button>
+              </div>
+
+              {/* Search and Filter */}
+              <div className="bg-white p-4 rounded-lg shadow mb-6">
+                <div className="flex space-x-4">
+                  <div className="flex-1">
+                    <input
+                      type="text"
+                      placeholder="Search flights..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">All Statuses</option>
+                    <option value="Scheduled">Scheduled</option>
+                    <option value="In-Flight">In-Flight</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Cancelled">Cancelled</option>
+                    <option value="Delayed">Delayed</option>
+                  </select>
+                  <button
+                    onClick={() => {
+                      setSearchTerm("");
+                      setStatusFilter("");
+                    }}
+                    className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+
+              {/* Flights Table */}
+              <div className="bg-white rounded-lg shadow overflow-hidden">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Flight Number
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Route
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Departure
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Price
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Available Seats
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filterFlights().map((flight) => (
+                      <tr key={flight.flightID}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {flight.flightNumber}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {flight.departureAirport?.airportCode} →{" "}
+                          {flight.arrivalAirport?.airportCode}
+                          <div className="text-xs text-gray-500">
+                            {flight.departureAirport?.city} →{" "}
+                            {flight.arrivalAirport?.city}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {formatDateTime(flight.departureTime)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span
+                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              flight.status === "Scheduled"
+                                ? "bg-blue-100 text-blue-800"
+                                : flight.status === "In-Flight"
+                                ? "bg-green-100 text-green-800"
+                                : flight.status === "Completed"
+                                ? "bg-gray-100 text-gray-800"
+                                : flight.status === "Cancelled"
+                                ? "bg-red-100 text-red-800"
+                                : "bg-yellow-100 text-yellow-800"
+                            }`}
+                          >
+                            {flight.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {formatCurrency(flight.price)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {flight.availableSeats}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => openEditFlightModal(flight)}
+                              className="text-indigo-600 hover:text-indigo-900"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleDeleteFlight(flight.flightID)
+                              }
+                              className="text-red-600 hover:text-red-900"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                            {flight.status === "Scheduled" && (
+                              <button
+                                onClick={() =>
+                                  handleUpdateFlightStatus(
+                                    flight.flightID,
+                                    "Cancelled"
+                                  )
+                                }
+                                className="text-yellow-600 hover:text-yellow-900"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {activeSection === "users" && (
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-3xl font-bold text-gray-800">
+                  User Management
+                </h2>
+                <button
+                  onClick={() => setShowCreateUserModal(true)}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create User
+                </button>
+              </div>
+
+              {/* Search and Filter */}
+              <div className="bg-white p-4 rounded-lg shadow mb-6">
+                <div className="flex space-x-4">
+                  <div className="flex-1">
+                    <input
+                      type="text"
+                      placeholder="Search users..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">All Types</option>
+                    <option value="passenger">Passenger</option>
+                    <option value="admin">Admin</option>
+                    <option value="crew">Crew</option>
+                    <option value="front_desk">Front Desk</option>
+                  </select>
+                  <button
+                    onClick={() => {
+                      setSearchTerm("");
+                      setStatusFilter("");
+                    }}
+                    className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+
+              {/* Users Table */}
+              <div className="bg-white rounded-lg shadow overflow-hidden">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Name
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Email
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Type
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Created
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filterUsers().map((user) => (
+                      <tr key={user.userID}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {user.name}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {user.email}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span
+                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              user.userType === "admin"
+                                ? "bg-red-100 text-red-800"
+                                : user.userType === "crew"
+                                ? "bg-blue-100 text-blue-800"
+                                : user.userType === "front_desk"
+                                ? "bg-purple-100 text-purple-800"
+                                : "bg-green-100 text-green-800"
+                            }`}
+                          >
+                            {user.userType.replace("_", " ").toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {formatDateTime(user.createProfile)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <button
+                            onClick={() => handleDeleteUser(user.userID)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {activeSection === "aircraft" && (
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-3xl font-bold text-gray-800">
                   Aircraft Management
-                </h3>
+                </h2>
                 <button
                   onClick={() => setShowAddAircraftModal(true)}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
                 >
-                  <Plus className="h-4 w-4" />
-                  <span>Add Aircraft</span>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Aircraft
                 </button>
               </div>
 
+              {/* Aircraft Table */}
               <div className="bg-white rounded-lg shadow overflow-hidden">
-                <div className="overflow-x-auto">
-                  {loading ? (
-                    <div className="flex items-center justify-center py-12">
-                      <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                      <span className="ml-2 text-gray-600">
-                        Loading aircrafts...
-                      </span>
-                    </div>
-                  ) : (
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Aircraft ID
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Model
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Capacity
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Status
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {aircrafts.map((aircraft) => (
-                          <tr
-                            key={aircraft.aircraftId}
-                            className="hover:bg-gray-50"
-                          >
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm font-medium text-gray-900">
-                                {aircraft.aircraftId}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {aircraft.model}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {aircraft.capacity}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                                {aircraft.status}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                              <button
-                                onClick={() => openEditAircraftModal(aircraft)}
-                                className="text-blue-600 hover:text-blue-900"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() =>
-                                  handleDeleteAircraft(aircraft.aircraftId)
-                                }
-                                className="text-red-600 hover:text-red-900"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Registration
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Model
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Manufacturer
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Capacity
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Current Location
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {aircrafts.map((aircraft) => (
+                      <tr key={aircraft.aircraftID}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {aircraft.registration}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {aircraft.aircraftModel}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {aircraft.manufacturer}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {aircraft.capacity}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {aircraft.airport
+                            ? `${aircraft.airport.airportCode} - ${aircraft.airport.name}`
+                            : "Not assigned"}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => openEditAircraftModal(aircraft)}
+                              className="text-indigo-600 hover:text-indigo-900"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleDeleteAircraft(aircraft.aircraftID)
+                              }
+                              className="text-red-600 hover:text-red-900"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
 
-          {/* Airports Section */}
           {activeSection === "airports" && (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-900">
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-3xl font-bold text-gray-800">
                   Airport Management
-                </h3>
+                </h2>
                 <button
                   onClick={() => setShowAddAirportModal(true)}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
                 >
-                  <Plus className="h-4 w-4" />
-                  <span>Add Airport</span>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Airport
                 </button>
               </div>
 
+              {/* Airports Table */}
               <div className="bg-white rounded-lg shadow overflow-hidden">
-                <div className="overflow-x-auto">
-                  {loading ? (
-                    <div className="flex items-center justify-center py-12">
-                      <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                      <span className="ml-2 text-gray-600">
-                        Loading airports...
-                      </span>
-                    </div>
-                  ) : (
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Airport Code
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Name
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            City
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Country
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {airports.map((airport) => (
-                          <tr key={airport.code} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm font-medium text-gray-900">
-                                {airport.code}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {airport.name}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {airport.city}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {airport.country}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                              <button
-                                onClick={() => openEditAirportModal(airport)}
-                                className="text-blue-600 hover:text-blue-900"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() =>
-                                  handleDeleteAirport(airport.code)
-                                }
-                                className="text-red-600 hover:text-red-900"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Code
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Name
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        City
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Country
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {airports.map((airport) => (
+                      <tr key={airport.airportID}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {airport.airportCode}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {airport.name}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {airport.city}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {airport.country}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => openEditAirportModal(airport)}
+                              className="text-indigo-600 hover:text-indigo-900"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleDeleteAirport(airport.airportID)
+                              }
+                              className="text-red-600 hover:text-red-900"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
 
-          {/* Payments Section */}
-          {activeSection === "payments" && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Payment Management
-              </h3>
+          {activeSection === "bookings" && (
+            <div>
+              <h2 className="text-3xl font-bold text-gray-800 mb-6">
+                Booking Management
+              </h2>
 
+              {/* Bookings Table */}
               <div className="bg-white rounded-lg shadow overflow-hidden">
-                <div className="overflow-x-auto">
-                  {loading ? (
-                    <div className="flex items-center justify-center py-12">
-                      <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                      <span className="ml-2 text-gray-600">
-                        Loading payments...
-                      </span>
-                    </div>
-                  ) : (
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Payment ID
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Booking ID
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Amount
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Method
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Status
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Date
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {payments.map((payment) => (
-                          <tr
-                            key={payment.paymentId}
-                            className="hover:bg-gray-50"
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Booking Number
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Passenger
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Flight
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Booking Date
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Amount
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Seat
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {bookings.map((booking) => (
+                      <tr key={booking.bookingID}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {booking.bookingNumber}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {booking.passengerName}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {booking.flightNumber}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {formatDateTime(booking.bookingDate)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span
+                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              booking.status === "confirmed"
+                                ? "bg-green-100 text-green-800"
+                                : booking.status === "cancelled"
+                                ? "bg-red-100 text-red-800"
+                                : "bg-yellow-100 text-yellow-800"
+                            }`}
                           >
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm font-medium text-gray-900">
-                                {payment.paymentId}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {payment.bookingId}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                ${payment.amount}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {payment.method}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                                {payment.status}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {formatDateTime(payment.date)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Statistics Section */}
-          {activeSection === "statistics" && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Flight Statistics
-              </h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white rounded-lg shadow p-6">
-                  <h4 className="text-lg font-medium text-gray-900 mb-4">
-                    Flight Performance
-                  </h4>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={flightStats}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="month" />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Bar dataKey="flights" fill="#3B82F6" />
-                      <Bar dataKey="onTime" fill="#10B981" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-
-                <div className="bg-white rounded-lg shadow p-6">
-                  <h4 className="text-lg font-medium text-gray-900 mb-4">
-                    Passenger Load Factor
-                  </h4>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={flightStats}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="month" />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Line
-                        type="monotone"
-                        dataKey="loadFactor"
-                        stroke="#3B82F6"
-                        strokeWidth={2}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Activity Section */}
-          {activeSection === "activity" && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-900">
-                User Activity
-              </h3>
-
-              <div className="bg-white rounded-lg shadow overflow-hidden">
-                <div className="overflow-x-auto">
-                  {loading ? (
-                    <div className="flex items-center justify-center py-12">
-                      <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                      <span className="ml-2 text-gray-600">
-                        Loading activity...
-                      </span>
-                    </div>
-                  ) : (
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            User ID
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Action
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Details
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Timestamp
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {userActivity.map((activity, index) => (
-                          <tr key={index} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm font-medium text-gray-900">
-                                {activity.userId}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {activity.action}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {activity.details}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {formatDateTime(activity.timestamp)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Revenue Section */}
-          {activeSection === "revenue" && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Revenue Reports
-              </h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white rounded-lg shadow p-6">
-                  <h4 className="text-lg font-medium text-gray-900 mb-4">
-                    Monthly Revenue
-                  </h4>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={revenueReports}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="month" />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Line
-                        type="monotone"
-                        dataKey="revenue"
-                        stroke="#10B981"
-                        strokeWidth={2}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-
-                <div className="bg-white rounded-lg shadow p-6">
-                  <h4 className="text-lg font-medium text-gray-900 mb-4">
-                    Revenue Breakdown
-                  </h4>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={revenueReports}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="month" />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Bar dataKey="ticketSales" fill="#3B82F6" />
-                      <Bar dataKey="ancillary" fill="#F59E0B" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+                            {booking.status.toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {formatCurrency(booking.totalAmount)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {booking.seatNumber || "Not assigned"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
@@ -1582,14 +1490,17 @@ const AdminDashboard = () => {
 
       {/* Add Flight Modal */}
       {showAddFlightModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-gray-900">
                 Add New Flight
               </h3>
               <button
-                onClick={() => setShowAddFlightModal(false)}
+                onClick={() => {
+                  setShowAddFlightModal(false);
+                  resetFlightForm();
+                }}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <X className="h-6 w-6" />
@@ -1598,89 +1509,195 @@ const AdminDashboard = () => {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Origin
+                <label className="block text-sm font-medium text-gray-700">
+                  Flight Number
                 </label>
                 <input
                   type="text"
-                  value={flightForm.origin}
+                  value={flightForm.flightNumber}
                   onChange={(e) =>
-                    setFlightForm({ ...flightForm, origin: e.target.value })
+                    setFlightForm({
+                      ...flightForm,
+                      flightNumber: e.target.value,
+                    })
                   }
-                  placeholder="e.g., JED"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="e.g., AA123"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Destination
+                <label className="block text-sm font-medium text-gray-700">
+                  Aircraft
                 </label>
-                <input
-                  type="text"
-                  value={flightForm.destination}
+                <select
+                  value={flightForm.aircraftID}
+                  onChange={(e) =>
+                    setFlightForm({ ...flightForm, aircraftID: e.target.value })
+                  }
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="">Select Aircraft</option>
+                  {aircrafts.map((aircraft) => (
+                    <option
+                      key={aircraft.aircraftID}
+                      value={aircraft.aircraftID}
+                    >
+                      {aircraft.registration} - {aircraft.aircraftModel}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Departure Airport
+                </label>
+                <select
+                  value={flightForm.departureAirportId}
                   onChange={(e) =>
                     setFlightForm({
                       ...flightForm,
-                      destination: e.target.value,
+                      departureAirportId: e.target.value,
                     })
                   }
-                  placeholder="e.g., DXB"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="">Select Departure Airport</option>
+                  {airports.map((airport) => (
+                    <option key={airport.airportID} value={airport.airportID}>
+                      {airport.airportCode} - {airport.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Departure Time
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={flightForm.departureTime}
+                    onChange={(e) =>
+                      setFlightForm({
+                        ...flightForm,
+                        departureTime: e.target.value,
+                      })
+                    }
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Arrival Time
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={flightForm.arrivalTime}
+                    onChange={(e) =>
+                      setFlightForm({
+                        ...flightForm,
+                        arrivalTime: e.target.value,
+                      })
+                    }
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Duration (minutes)
+                  </label>
+                  <input
+                    type="number"
+                    value={flightForm.duration}
+                    onChange={(e) =>
+                      setFlightForm({ ...flightForm, duration: e.target.value })
+                    }
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="120"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Price ($)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={flightForm.price}
+                    onChange={(e) =>
+                      setFlightForm({ ...flightForm, price: e.target.value })
+                    }
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="500.00"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Available Seats
+                </label>
+                <input
+                  type="number"
+                  value={flightForm.availableSeats}
+                  onChange={(e) =>
+                    setFlightForm({
+                      ...flightForm,
+                      availableSeats: e.target.value,
+                    })
+                  }
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="150"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Departure Time
+                <label className="block text-sm font-medium text-gray-700">
+                  Status
                 </label>
-                <input
-                  type="datetime-local"
-                  value={flightForm.departureTime}
+                <select
+                  value={flightForm.status}
                   onChange={(e) =>
-                    setFlightForm({
-                      ...flightForm,
-                      departureTime: e.target.value,
-                    })
+                    setFlightForm({ ...flightForm, status: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                />
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="Scheduled">Scheduled</option>
+                  <option value="In-Flight">In-Flight</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Cancelled">Cancelled</option>
+                  <option value="Delayed">Delayed</option>
+                </select>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Arrival Time
-                </label>
-                <input
-                  type="datetime-local"
-                  value={flightForm.arrivalTime}
-                  onChange={(e) =>
-                    setFlightForm({
-                      ...flightForm,
-                      arrivalTime: e.target.value,
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-
-              <div className="flex space-x-3">
+              <div className="flex justify-end space-x-3 pt-4">
                 <button
-                  onClick={() => setShowAddFlightModal(false)}
-                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
+                  onClick={() => {
+                    setShowAddFlightModal(false);
+                    resetFlightForm();
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-transparent rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleAddFlight}
                   disabled={loading}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
                 >
                   {loading ? (
-                    <div className="flex items-center justify-center">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <>
+                      <Loader2 className="animate-spin -ml-1 mr-3 h-4 w-4" />
                       Adding...
-                    </div>
+                    </>
                   ) : (
                     "Add Flight"
                   )}
@@ -1693,14 +1710,16 @@ const AdminDashboard = () => {
 
       {/* Edit Flight Modal */}
       {showEditFlightModal && selectedFlight && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Edit Flight
-              </h3>
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Edit Flight</h3>
               <button
-                onClick={() => setShowEditFlightModal(false)}
+                onClick={() => {
+                  setShowEditFlightModal(false);
+                  setSelectedFlight(null);
+                  resetFlightForm();
+                }}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <X className="h-6 w-6" />
@@ -1709,87 +1728,146 @@ const AdminDashboard = () => {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Origin
+                <label className="block text-sm font-medium text-gray-700">
+                  Flight Number
                 </label>
                 <input
                   type="text"
-                  value={flightForm.origin}
+                  value={flightForm.flightNumber}
                   onChange={(e) =>
-                    setFlightForm({ ...flightForm, origin: e.target.value })
+                    setFlightForm({
+                      ...flightForm,
+                      flightNumber: e.target.value,
+                    })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Departure Time
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={flightForm.departureTime}
+                    onChange={(e) =>
+                      setFlightForm({
+                        ...flightForm,
+                        departureTime: e.target.value,
+                      })
+                    }
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Arrival Time
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={flightForm.arrivalTime}
+                    onChange={(e) =>
+                      setFlightForm({
+                        ...flightForm,
+                        arrivalTime: e.target.value,
+                      })
+                    }
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Duration (minutes)
+                  </label>
+                  <input
+                    type="number"
+                    value={flightForm.duration}
+                    onChange={(e) =>
+                      setFlightForm({ ...flightForm, duration: e.target.value })
+                    }
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Price ($)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={flightForm.price}
+                    onChange={(e) =>
+                      setFlightForm({ ...flightForm, price: e.target.value })
+                    }
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Available Seats
+                </label>
+                <input
+                  type="number"
+                  value={flightForm.availableSeats}
+                  onChange={(e) =>
+                    setFlightForm({
+                      ...flightForm,
+                      availableSeats: e.target.value,
+                    })
+                  }
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Destination
+                <label className="block text-sm font-medium text-gray-700">
+                  Status
                 </label>
-                <input
-                  type="text"
-                  value={flightForm.destination}
+                <select
+                  value={flightForm.status}
                   onChange={(e) =>
-                    setFlightForm({
-                      ...flightForm,
-                      destination: e.target.value,
-                    })
+                    setFlightForm({ ...flightForm, status: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                />
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="Scheduled">Scheduled</option>
+                  <option value="In-Flight">In-Flight</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Cancelled">Cancelled</option>
+                  <option value="Delayed">Delayed</option>
+                </select>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Departure Time
-                </label>
-                <input
-                  type="datetime-local"
-                  value={flightForm.departureTime}
-                  onChange={(e) =>
-                    setFlightForm({
-                      ...flightForm,
-                      departureTime: e.target.value,
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Arrival Time
-                </label>
-                <input
-                  type="datetime-local"
-                  value={flightForm.arrivalTime}
-                  onChange={(e) =>
-                    setFlightForm({
-                      ...flightForm,
-                      arrivalTime: e.target.value,
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-
-              <div className="flex space-x-3">
+              <div className="flex justify-end space-x-3 pt-4">
                 <button
-                  onClick={() => setShowEditFlightModal(false)}
-                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
+                  onClick={() => {
+                    setShowEditFlightModal(false);
+                    setSelectedFlight(null);
+                    resetFlightForm();
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-transparent rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleUpdateFlight}
                   disabled={loading}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
                 >
                   {loading ? (
-                    <div className="flex items-center justify-center">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <>
+                      <Loader2 className="animate-spin -ml-1 mr-3 h-4 w-4" />
                       Updating...
-                    </div>
+                    </>
                   ) : (
                     "Update Flight"
                   )}
@@ -1800,105 +1878,29 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* Crew Assignment Modal */}
-      {showCrewModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Assign Crew
-              </h3>
-              <button
-                onClick={() => setShowCrewModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Select Flight
-                </label>
-                <select
-                  value={crewForm.flightId}
-                  onChange={(e) =>
-                    setCrewForm({ ...crewForm, flightId: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">Choose a flight...</option>
-                  {flights.map((flight) => (
-                    <option key={flight.flightId} value={flight.flightId}>
-                      {flight.flightId} - {flight.origin} → {flight.destination}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Crew Members
-                </label>
-                <textarea
-                  value={crewForm.crew}
-                  onChange={(e) =>
-                    setCrewForm({ ...crewForm, crew: e.target.value })
-                  }
-                  placeholder="Enter crew names separated by commas (e.g., Pilot John, Co-Pilot Jane, Attendant Bob)"
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => setShowCrewModal(false)}
-                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleAssignCrew}
-                  disabled={loading}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {loading ? (
-                    <div className="flex items-center justify-center">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Assigning...
-                    </div>
-                  ) : (
-                    "Assign Crew"
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Create User Modal */}
       {showCreateUserModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-10 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-gray-900">
                 Create New User
               </h3>
               <button
-                onClick={() => setShowCreateUserModal(false)}
+                onClick={() => {
+                  setShowCreateUserModal(false);
+                  resetUserForm();
+                }}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <X className="h-6 w-6" />
               </button>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-96 overflow-y-auto">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Name
+                <label className="block text-sm font-medium text-gray-700">
+                  Name *
                 </label>
                 <input
                   type="text"
@@ -1906,14 +1908,14 @@ const AdminDashboard = () => {
                   onChange={(e) =>
                     setUserForm({ ...userForm, name: e.target.value })
                   }
-                  placeholder="e.g., John Doe"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Full Name"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
+                <label className="block text-sm font-medium text-gray-700">
+                  Email *
                 </label>
                 <input
                   type="email"
@@ -1921,46 +1923,241 @@ const AdminDashboard = () => {
                   onChange={(e) =>
                     setUserForm({ ...userForm, email: e.target.value })
                   }
-                  placeholder="e.g., john@example.com"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="email@example.com"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Role
+                <label className="block text-sm font-medium text-gray-700">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  value={userForm.password}
+                  onChange={(e) =>
+                    setUserForm({ ...userForm, password: e.target.value })
+                  }
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  User Type *
                 </label>
                 <select
-                  value={userForm.role}
+                  value={userForm.userType}
                   onChange={(e) =>
-                    setUserForm({ ...userForm, role: e.target.value })
+                    setUserForm({ ...userForm, userType: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                 >
-                  <option value="">Select role...</option>
-                  <option value="Passenger">Passenger</option>
-                  <option value="Crew">Crew</option>
-                  <option value="Admin">Admin</option>
+                  <option value="passenger">Passenger</option>
+                  <option value="admin">Admin</option>
+                  <option value="crew">Crew</option>
+                  <option value="front_desk">Front Desk</option>
                 </select>
               </div>
 
-              <div className="flex space-x-3">
+              {/* Conditional fields based on user type */}
+              {userForm.userType === "passenger" && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Passport Number
+                    </label>
+                    <input
+                      type="text"
+                      value={userForm.passportNumber}
+                      onChange={(e) =>
+                        setUserForm({
+                          ...userForm,
+                          passportNumber: e.target.value,
+                        })
+                      }
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Nationality
+                    </label>
+                    <input
+                      type="text"
+                      value={userForm.nationality}
+                      onChange={(e) =>
+                        setUserForm({
+                          ...userForm,
+                          nationality: e.target.value,
+                        })
+                      }
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Date of Birth
+                    </label>
+                    <input
+                      type="date"
+                      value={userForm.dateOfBirth}
+                      onChange={(e) =>
+                        setUserForm({
+                          ...userForm,
+                          dateOfBirth: e.target.value,
+                        })
+                      }
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                </>
+              )}
+
+              {userForm.userType === "admin" && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Employee Number
+                    </label>
+                    <input
+                      type="text"
+                      value={userForm.employeeNumber}
+                      onChange={(e) =>
+                        setUserForm({
+                          ...userForm,
+                          employeeNumber: e.target.value,
+                        })
+                      }
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Access Level
+                    </label>
+                    <input
+                      type="text"
+                      value={userForm.accessLevel}
+                      onChange={(e) =>
+                        setUserForm({
+                          ...userForm,
+                          accessLevel: e.target.value,
+                        })
+                      }
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="1-5"
+                    />
+                  </div>
+                </>
+              )}
+
+              {userForm.userType === "crew" && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Employee Number
+                    </label>
+                    <input
+                      type="text"
+                      value={userForm.employeeNumber}
+                      onChange={(e) =>
+                        setUserForm({
+                          ...userForm,
+                          employeeNumber: e.target.value,
+                        })
+                      }
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Position
+                    </label>
+                    <input
+                      type="text"
+                      value={userForm.position}
+                      onChange={(e) =>
+                        setUserForm({ ...userForm, position: e.target.value })
+                      }
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="e.g., Pilot, Flight Attendant"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      License Number
+                    </label>
+                    <input
+                      type="text"
+                      value={userForm.licenseNumber}
+                      onChange={(e) =>
+                        setUserForm({
+                          ...userForm,
+                          licenseNumber: e.target.value,
+                        })
+                      }
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                </>
+              )}
+
+              {userForm.userType === "front_desk" && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Employee Number
+                    </label>
+                    <input
+                      type="text"
+                      value={userForm.employeeNumber}
+                      onChange={(e) =>
+                        setUserForm({
+                          ...userForm,
+                          employeeNumber: e.target.value,
+                        })
+                      }
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Department
+                    </label>
+                    <input
+                      type="text"
+                      value={userForm.department}
+                      onChange={(e) =>
+                        setUserForm({ ...userForm, department: e.target.value })
+                      }
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="e.g., Check-in, Customer Service"
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="flex justify-end space-x-3 pt-4">
                 <button
-                  onClick={() => setShowCreateUserModal(false)}
-                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
+                  onClick={() => {
+                    setShowCreateUserModal(false);
+                    resetUserForm();
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-transparent rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleCreateUser}
                   disabled={loading}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
                 >
                   {loading ? (
-                    <div className="flex items-center justify-center">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <>
+                      <Loader2 className="animate-spin -ml-1 mr-3 h-4 w-4" />
                       Creating...
-                    </div>
+                    </>
                   ) : (
                     "Create User"
                   )}
@@ -1973,14 +2170,17 @@ const AdminDashboard = () => {
 
       {/* Add Aircraft Modal */}
       {showAddAircraftModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-gray-900">
                 Add New Aircraft
               </h3>
               <button
-                onClick={() => setShowAddAircraftModal(false)}
+                onClick={() => {
+                  setShowAddAircraftModal(false);
+                  resetAircraftForm();
+                }}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <X className="h-6 w-6" />
@@ -1989,41 +2189,62 @@ const AdminDashboard = () => {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Aircraft ID
+                <label className="block text-sm font-medium text-gray-700">
+                  Registration *
                 </label>
                 <input
                   type="text"
-                  value={aircraftForm.aircraftId}
+                  value={aircraftForm.registration}
                   onChange={(e) =>
                     setAircraftForm({
                       ...aircraftForm,
-                      aircraftId: e.target.value,
+                      registration: e.target.value.toUpperCase(),
                     })
                   }
-                  placeholder="e.g., AC001"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="e.g., N123AB"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Model
+                <label className="block text-sm font-medium text-gray-700">
+                  Aircraft Model *
                 </label>
                 <input
                   type="text"
-                  value={aircraftForm.model}
+                  value={aircraftForm.aircraftModel}
                   onChange={(e) =>
-                    setAircraftForm({ ...aircraftForm, model: e.target.value })
+                    setAircraftForm({
+                      ...aircraftForm,
+                      aircraftModel: e.target.value,
+                    })
                   }
-                  placeholder="e.g., Boeing 737"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="e.g., Boeing 737-800"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Capacity
+                <label className="block text-sm font-medium text-gray-700">
+                  Manufacturer *
+                </label>
+                <input
+                  type="text"
+                  value={aircraftForm.manufacturer}
+                  onChange={(e) =>
+                    setAircraftForm({
+                      ...aircraftForm,
+                      manufacturer: e.target.value,
+                    })
+                  }
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="e.g., Boeing"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Capacity *
                 </label>
                 <input
                   type="number"
@@ -2034,28 +2255,54 @@ const AdminDashboard = () => {
                       capacity: e.target.value,
                     })
                   }
-                  placeholder="e.g., 150"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="180"
                 />
               </div>
 
-              <div className="flex space-x-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Current Airport
+                </label>
+                <select
+                  value={aircraftForm.airportId}
+                  onChange={(e) =>
+                    setAircraftForm({
+                      ...aircraftForm,
+                      airportId: e.target.value,
+                    })
+                  }
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="">Select Airport (Optional)</option>
+                  {airports.map((airport) => (
+                    <option key={airport.airportID} value={airport.airportID}>
+                      {airport.airportCode} - {airport.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4">
                 <button
-                  onClick={() => setShowAddAircraftModal(false)}
-                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
+                  onClick={() => {
+                    setShowAddAircraftModal(false);
+                    resetAircraftForm();
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-transparent rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleAddAircraft}
                   disabled={loading}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
                 >
                   {loading ? (
-                    <div className="flex items-center justify-center">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <>
+                      <Loader2 className="animate-spin -ml-1 mr-3 h-4 w-4" />
                       Adding...
-                    </div>
+                    </>
                   ) : (
                     "Add Aircraft"
                   )}
@@ -2068,14 +2315,16 @@ const AdminDashboard = () => {
 
       {/* Edit Aircraft Modal */}
       {showEditAircraftModal && selectedAircraft && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Edit Aircraft
-              </h3>
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Edit Aircraft</h3>
               <button
-                onClick={() => setShowEditAircraftModal(false)}
+                onClick={() => {
+                  setShowEditAircraftModal(false);
+                  setSelectedAircraft(null);
+                  resetAircraftForm();
+                }}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <X className="h-6 w-6" />
@@ -2084,39 +2333,58 @@ const AdminDashboard = () => {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Aircraft ID
+                <label className="block text-sm font-medium text-gray-700">
+                  Registration
                 </label>
                 <input
                   type="text"
-                  value={aircraftForm.aircraftId}
+                  value={aircraftForm.registration}
                   onChange={(e) =>
                     setAircraftForm({
                       ...aircraftForm,
-                      aircraftId: e.target.value,
+                      registration: e.target.value.toUpperCase(),
                     })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  disabled
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Model
+                <label className="block text-sm font-medium text-gray-700">
+                  Aircraft Model
                 </label>
                 <input
                   type="text"
-                  value={aircraftForm.model}
+                  value={aircraftForm.aircraftModel}
                   onChange={(e) =>
-                    setAircraftForm({ ...aircraftForm, model: e.target.value })
+                    setAircraftForm({
+                      ...aircraftForm,
+                      aircraftModel: e.target.value,
+                    })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700">
+                  Manufacturer
+                </label>
+                <input
+                  type="text"
+                  value={aircraftForm.manufacturer}
+                  onChange={(e) =>
+                    setAircraftForm({
+                      ...aircraftForm,
+                      manufacturer: e.target.value,
+                    })
+                  }
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
                   Capacity
                 </label>
                 <input
@@ -2128,27 +2396,54 @@ const AdminDashboard = () => {
                       capacity: e.target.value,
                     })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                 />
               </div>
 
-              <div className="flex space-x-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Current Airport
+                </label>
+                <select
+                  value={aircraftForm.airportId}
+                  onChange={(e) =>
+                    setAircraftForm({
+                      ...aircraftForm,
+                      airportId: e.target.value,
+                    })
+                  }
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="">Select Airport (Optional)</option>
+                  {airports.map((airport) => (
+                    <option key={airport.airportID} value={airport.airportID}>
+                      {airport.airportCode} - {airport.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4">
                 <button
-                  onClick={() => setShowEditAircraftModal(false)}
-                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
+                  onClick={() => {
+                    setShowEditAircraftModal(false);
+                    setSelectedAircraft(null);
+                    resetAircraftForm();
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-transparent rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={handleEditAircraft}
+                  onClick={handleUpdateAircraft}
                   disabled={loading}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
                 >
                   {loading ? (
-                    <div className="flex items-center justify-center">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <>
+                      <Loader2 className="animate-spin -ml-1 mr-3 h-4 w-4" />
                       Updating...
-                    </div>
+                    </>
                   ) : (
                     "Update Aircraft"
                   )}
@@ -2161,14 +2456,17 @@ const AdminDashboard = () => {
 
       {/* Add Airport Modal */}
       {showAddAirportModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-gray-900">
                 Add New Airport
               </h3>
               <button
-                onClick={() => setShowAddAirportModal(false)}
+                onClick={() => {
+                  setShowAddAirportModal(false);
+                  resetAirportForm();
+                }}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <X className="h-6 w-6" />
@@ -2177,23 +2475,27 @@ const AdminDashboard = () => {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Airport Code
+                <label className="block text-sm font-medium text-gray-700">
+                  Airport Code *
                 </label>
                 <input
                   type="text"
-                  value={airportForm.code}
+                  value={airportForm.airportCode}
                   onChange={(e) =>
-                    setAirportForm({ ...airportForm, code: e.target.value })
+                    setAirportForm({
+                      ...airportForm,
+                      airportCode: e.target.value.toUpperCase(),
+                    })
                   }
-                  placeholder="e.g., JED"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="e.g., JFK"
+                  maxLength="3"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Name
+                <label className="block text-sm font-medium text-gray-700">
+                  Airport Name *
                 </label>
                 <input
                   type="text"
@@ -2201,14 +2503,14 @@ const AdminDashboard = () => {
                   onChange={(e) =>
                     setAirportForm({ ...airportForm, name: e.target.value })
                   }
-                  placeholder="e.g., King Abdulaziz International Airport"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="e.g., John F. Kennedy International Airport"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  City
+                <label className="block text-sm font-medium text-gray-700">
+                  City *
                 </label>
                 <input
                   type="text"
@@ -2216,14 +2518,14 @@ const AdminDashboard = () => {
                   onChange={(e) =>
                     setAirportForm({ ...airportForm, city: e.target.value })
                   }
-                  placeholder="e.g., Jeddah"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="e.g., New York"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Country
+                <label className="block text-sm font-medium text-gray-700">
+                  Country *
                 </label>
                 <input
                   type="text"
@@ -2231,28 +2533,31 @@ const AdminDashboard = () => {
                   onChange={(e) =>
                     setAirportForm({ ...airportForm, country: e.target.value })
                   }
-                  placeholder="e.g., Saudi Arabia"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="e.g., United States"
                 />
               </div>
 
-              <div className="flex space-x-3">
+              <div className="flex justify-end space-x-3 pt-4">
                 <button
-                  onClick={() => setShowAddAirportModal(false)}
-                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
+                  onClick={() => {
+                    setShowAddAirportModal(false);
+                    resetAirportForm();
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-transparent rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleAddAirport}
                   disabled={loading}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
                 >
                   {loading ? (
-                    <div className="flex items-center justify-center">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <>
+                      <Loader2 className="animate-spin -ml-1 mr-3 h-4 w-4" />
                       Adding...
-                    </div>
+                    </>
                   ) : (
                     "Add Airport"
                   )}
@@ -2265,14 +2570,16 @@ const AdminDashboard = () => {
 
       {/* Edit Airport Modal */}
       {showEditAirportModal && selectedAirport && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Edit Airport
-              </h3>
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Edit Airport</h3>
               <button
-                onClick={() => setShowEditAirportModal(false)}
+                onClick={() => {
+                  setShowEditAirportModal(false);
+                  setSelectedAirport(null);
+                  resetAirportForm();
+                }}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <X className="h-6 w-6" />
@@ -2281,23 +2588,23 @@ const AdminDashboard = () => {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700">
                   Airport Code
                 </label>
                 <input
                   type="text"
-                  value={airportForm.code}
-                  onChange={(e) =>
-                    setAirportForm({ ...airportForm, code: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  value={airportForm.airportCode}
                   disabled
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-100 text-gray-500"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Airport code cannot be changed
+                </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Name
+                <label className="block text-sm font-medium text-gray-700">
+                  Airport Name
                 </label>
                 <input
                   type="text"
@@ -2305,12 +2612,12 @@ const AdminDashboard = () => {
                   onChange={(e) =>
                     setAirportForm({ ...airportForm, name: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700">
                   City
                 </label>
                 <input
@@ -2319,12 +2626,12 @@ const AdminDashboard = () => {
                   onChange={(e) =>
                     setAirportForm({ ...airportForm, city: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700">
                   Country
                 </label>
                 <input
@@ -2333,27 +2640,31 @@ const AdminDashboard = () => {
                   onChange={(e) =>
                     setAirportForm({ ...airportForm, country: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                 />
               </div>
 
-              <div className="flex space-x-3">
+              <div className="flex justify-end space-x-3 pt-4">
                 <button
-                  onClick={() => setShowEditAirportModal(false)}
-                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
+                  onClick={() => {
+                    setShowEditAirportModal(false);
+                    setSelectedAirport(null);
+                    resetAirportForm();
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-transparent rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={handleEditAirport}
+                  onClick={handleUpdateAirport}
                   disabled={loading}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
                 >
                   {loading ? (
-                    <div className="flex items-center justify-center">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <>
+                      <Loader2 className="animate-spin -ml-1 mr-3 h-4 w-4" />
                       Updating...
-                    </div>
+                    </>
                   ) : (
                     "Update Airport"
                   )}

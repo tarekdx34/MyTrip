@@ -1,144 +1,7 @@
-/* registry worked but login dont */
-// // API service for MY TRIP authentication with backend
-// const API_BASE_URL = 'http://localhost:8080/api/auth';
+// API service for MY TRIP authentication and data with backend
+const API_BASE_URL = "http://localhost:8081/api";
 
-// export interface LoginRequest {
-//   email: string;
-//   password: string;
-// }
-
-// export interface SignupRequest {
-//   name: string;
-//   email: string;
-//   password: string;
-//   userType: 'passenger' | 'admin' | 'crew' | 'front_desk';
-//   passportNumber?: string;
-//   nationality?: string;
-//   dateOfBirth?: string;
-//   employeeNumber?: string;
-//   accessLevel?: string;
-//   position?: string;
-//   licenseNumber?: string;
-//   department?: string;
-// }
-
-// export interface LoginResponse {
-//   token: string;
-//   userId: number;
-//   role: string;
-// }
-
-// export interface SignupResponse {
-//   message: string;
-// }
-
-// export interface User {
-//   userId: number;
-//   role: string;
-//   name: string;
-//   email: string;
-// }
-
-// export const authAPI = {
-//   async login(credentials: LoginRequest): Promise<LoginResponse> {
-//     const response = await fetch(`${API_BASE_URL}/login`, {
-//       method: 'POST',
-//       headers: {
-//         'Content-Type': 'application/json',
-//       },
-//       body: JSON.stringify(credentials),
-//     });
-
-//     if (!response.ok) {
-//       const errorData = await response.json();
-//       throw new Error(errorData.message || 'Login failed');
-//     }
-
-//     return await response.json();
-//   },
-
-//   async signup(userData: SignupRequest): Promise<SignupResponse> {
-//     const response = await fetch(`${API_BASE_URL}/register`, {
-//       method: 'POST',
-//       headers: {
-//         'Content-Type': 'application/json',
-//       },
-//       body: JSON.stringify(userData),
-//     });
-
-//     if (!response.ok) {
-//       const errorData = await response.json();
-//       throw new Error(errorData.message || 'Signup failed');
-//     }
-
-//     // The backend returns a plain string, not JSON
-//     const data = await response.text();
-//     return { message: data };
-//   },
-
-//   async getUser(userId: number): Promise<User> {
-//     // This might need a backend endpoint, for now return mock
-//     throw new Error('Not implemented');
-//   }
-// };
-
-// // Mock data for dashboard
-// export const mockData = {
-//   passengerBookings: [
-//     {
-//       bookingId: 'BK001',
-//       flightNumber: 'SV123',
-//       from: 'Riyadh (RUH)',
-//       to: 'Dubai (DXB)',
-//       date: '2025-02-15',
-//       time: '14:30',
-//       status: 'Confirmed',
-//       seat: '12A'
-//     },
-//     {
-//       bookingId: 'BK002',
-//       flightNumber: 'MS456',
-//       from: 'Jeddah (JED)',
-//       to: 'Cairo (CAI)',
-//       date: '2025-03-20',
-//       time: '09:15',
-//       status: 'Pending',
-//       seat: '8C'
-//     }
-//   ],
-
-//   adminReports: {
-//     totalFlights: 1247,
-//     totalPassengers: 45632,
-//     revenue: '$2,450,000',
-//     topDestinations: ['Dubai', 'Cairo', 'London', 'Paris', 'New York']
-//   },
-
-//   crewFlights: [
-//     {
-//       flightNumber: 'SV789',
-//       route: 'Riyadh → London',
-//       date: '2025-02-10',
-//       time: '22:45',
-//       aircraft: 'Boeing 777',
-//       role: 'Captain'
-//     },
-//     {
-//       flightNumber: 'SV234',
-//       route: 'Dubai → Paris',
-//       date: '2025-02-12',
-//       time: '06:30',
-//       aircraft: 'Airbus A350',
-//       role: 'First Officer'
-//     }
-//   ]
-// };
-
-import { mockAPI as frontDeskMockAPI } from "../components/FrontDeskDashboard";
-
-// API service for MY TRIP authentication with backend
-const API_BASE_URL = "http://localhost:8080/api/auth";
-
+// Types for API responses
 export interface LoginRequest {
   email: string;
   password: string;
@@ -170,15 +33,120 @@ export interface SignupResponse {
 }
 
 export interface User {
-  userId: number;
-  role: string;
+  userID: number;
   name: string;
   email: string;
+  password: string;
+  userType: string;
+  loginIn: string | null;
+  logout: string | null;
+  createProfile: string;
+  updateProfile: string;
 }
 
+export interface Flight {
+  flightID: number;
+  flightNumber: string;
+  aircraft: {
+    aircraftID: number;
+    aircraftModel: string;
+    manufacturer: string;
+    registration: string;
+    capacity: number;
+    airport?: Airport;
+  };
+  departureAirport: Airport;
+  arrivalAirport: Airport;
+  departureTime: string;
+  arrivalTime: string;
+  duration: number;
+  price: number;
+  availableSeats: number;
+  status: string;
+}
+
+export interface Airport {
+  airportID: number;
+  airportCode: string;
+  name: string;
+  city: string;
+  country: string;
+}
+
+export interface Aircraft {
+  aircraftID: number;
+  aircraftModel: string;
+  manufacturer: string;
+  registration: string;
+  capacity: number;
+  airport: Airport;
+}
+
+export interface Passenger {
+  passengerID: number;
+  userID: number;
+  passportNumber?: string;
+  nationality?: string;
+  dateOfBirth?: string;
+}
+
+export interface Admin {
+  adminID: number;
+  userID: number;
+  employeeNumber?: string;
+  accessLevel?: number;
+}
+
+export interface Crew {
+  crewID: number;
+  userID: number;
+  employeeNumber?: string;
+  position: string;
+  licenseNumber?: string;
+}
+
+export interface FrontDesk {
+  frontDeskID: number;
+  userID: number;
+  employeeNumber?: string;
+  department?: string;
+}
+
+export interface BookingRequest {
+  passengerID: number;
+  flightID: number;
+  seatNumber?: string;
+  totalAmount: number;
+}
+
+export interface BookingResponse {
+  bookingID: number;
+  bookingNumber: string;
+  passengerID: number;
+  passengerName: string;
+  flightID: number;
+  flightNumber: string;
+  bookingDate: string;
+  seatNumber?: string;
+  status: string;
+  totalAmount: number;
+}
+
+export interface Booking {
+  bookingID: number;
+  bookingNumber: string;
+  passengerID: number;
+  flightID: number;
+  bookingDate: string;
+  seatNumber?: string;
+  status: string;
+  totalAmount: number;
+}
+
+// Authentication API
 export const authAPI = {
   async login(credentials: LoginRequest): Promise<LoginResponse> {
-    const response = await fetch(`${API_BASE_URL}/login`, {
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -187,7 +155,6 @@ export const authAPI = {
     });
 
     if (!response.ok) {
-      // Backend returns plain string for errors, not JSON
       const errorMessage = await response.text();
       throw new Error(errorMessage || "Login failed");
     }
@@ -196,7 +163,7 @@ export const authAPI = {
   },
 
   async signup(userData: SignupRequest): Promise<SignupResponse> {
-    const response = await fetch(`${API_BASE_URL}/register`, {
+    const response = await fetch(`${API_BASE_URL}/auth/register`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -209,65 +176,732 @@ export const authAPI = {
       throw new Error(errorData.message || "Signup failed");
     }
 
-    // The backend returns a plain string, not JSON
     const data = await response.text();
     return { message: data };
   },
+};
 
-  async getUser(userId: number): Promise<User> {
-    // This might need a backend endpoint, for now return mock
-    throw new Error("Not implemented");
+// User API
+export const userAPI = {
+  async getAllUsers(): Promise<User[]> {
+    const response = await fetch(`${API_BASE_URL}/users`);
+    if (!response.ok) throw new Error("Failed to fetch users");
+    return await response.json();
+  },
+
+  async getUserById(userId: number): Promise<User> {
+    const response = await fetch(`${API_BASE_URL}/users/${userId}`);
+    if (!response.ok) throw new Error("User not found");
+    return await response.json();
+  },
+
+  async getUserByEmail(email: string): Promise<User> {
+    const response = await fetch(
+      `${API_BASE_URL}/users/email/${encodeURIComponent(email)}`
+    );
+    if (!response.ok) throw new Error("User not found");
+    return await response.json();
+  },
+
+  async getUsersByType(userType: string): Promise<User[]> {
+    const response = await fetch(`${API_BASE_URL}/users/type/${userType}`);
+    if (!response.ok) throw new Error("Failed to fetch users by type");
+    return await response.json();
+  },
+
+  async updateUser(userId: number, userData: Partial<User>): Promise<User> {
+    const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(userData),
+    });
+    if (!response.ok) throw new Error("Failed to update user");
+    return await response.json();
+  },
+
+  async deleteUser(userId: number): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) throw new Error("Failed to delete user");
+  },
+
+  async checkEmailAvailable(email: string): Promise<boolean> {
+    const response = await fetch(
+      `${API_BASE_URL}/users/email-available?email=${encodeURIComponent(email)}`
+    );
+    if (!response.ok) throw new Error("Failed to check email availability");
+    return await response.json();
   },
 };
 
-// Mock data for dashboard
-export const mockData = {
-  passengerBookings: [
-    {
-      bookingId: "BK001",
-      flightNumber: "SV123",
-      from: "Riyadh (RUH)",
-      to: "Dubai (DXB)",
-      date: "2025-02-15",
-      time: "14:30",
-      status: "Confirmed",
-      seat: "12A",
-    },
-    {
-      bookingId: "BK002",
-      flightNumber: "MS456",
-      from: "Jeddah (JED)",
-      to: "Cairo (CAI)",
-      date: "2025-03-20",
-      time: "09:15",
-      status: "Pending",
-      seat: "8C",
-    },
-  ],
-
-  adminReports: {
-    totalFlights: 1247,
-    totalPassengers: 45632,
-    revenue: "$2,450,000",
-    topDestinations: ["Dubai", "Cairo", "London", "Paris", "New York"],
+// Flight API
+export const flightAPI = {
+  async getAllFlights(): Promise<Flight[]> {
+    const response = await fetch(`${API_BASE_URL}/flights`);
+    if (!response.ok) throw new Error("Failed to fetch flights");
+    return await response.json();
   },
 
-  crewFlights: [
-    {
-      flightNumber: "SV789",
-      route: "Riyadh → London",
-      date: "2025-02-10",
-      time: "22:45",
-      aircraft: "Boeing 777",
-      role: "Captain",
-    },
-    {
-      flightNumber: "SV234",
-      route: "Dubai → Paris",
-      date: "2025-02-12",
-      time: "06:30",
-      aircraft: "Airbus A350",
-      role: "First Officer",
-    },
-  ],
+  async getFlightById(flightId: number): Promise<Flight> {
+    const response = await fetch(`${API_BASE_URL}/flights/${flightId}`);
+    if (!response.ok) throw new Error("Flight not found");
+    return await response.json();
+  },
+
+  async getFlightByNumber(flightNumber: string): Promise<Flight> {
+    const response = await fetch(
+      `${API_BASE_URL}/flights/number/${flightNumber}`
+    );
+    if (!response.ok) throw new Error("Flight not found");
+    return await response.json();
+  },
+
+  async searchFlights(params: {
+    departureAirportId?: number;
+    arrivalAirportId?: number;
+    departureDate?: string;
+    minPrice?: number;
+    maxPrice?: number;
+    minSeats?: number;
+  }): Promise<Flight[]> {
+    const queryParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) {
+        queryParams.append(key, value.toString());
+      }
+    });
+
+    const response = await fetch(
+      `${API_BASE_URL}/flights/search/advanced?${queryParams}`
+    );
+    if (!response.ok) throw new Error("Failed to search flights");
+    return await response.json();
+  },
+
+  async getAvailableFlights(): Promise<Flight[]> {
+    const response = await fetch(`${API_BASE_URL}/flights/available`);
+    if (!response.ok) throw new Error("Failed to fetch available flights");
+    return await response.json();
+  },
+
+  async getFlightsByStatus(status: string): Promise<Flight[]> {
+    const response = await fetch(`${API_BASE_URL}/flights/status/${status}`);
+    if (!response.ok) throw new Error("Failed to fetch flights by status");
+    return await response.json();
+  },
+
+  async createFlight(flightData: Omit<Flight, "flightID">): Promise<Flight> {
+    const response = await fetch(`${API_BASE_URL}/flights`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(flightData),
+    });
+    if (!response.ok) throw new Error("Failed to create flight");
+    return await response.json();
+  },
+
+  async updateFlight(
+    flightId: number,
+    flightData: Partial<Flight>
+  ): Promise<Flight> {
+    const response = await fetch(`${API_BASE_URL}/flights/${flightId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(flightData),
+    });
+    if (!response.ok) throw new Error("Failed to update flight");
+    return await response.json();
+  },
+
+  async updateFlightStatus(flightId: number, status: string): Promise<Flight> {
+    const response = await fetch(
+      `${API_BASE_URL}/flights/${flightId}/status?status=${status}`,
+      {
+        method: "PUT",
+      }
+    );
+    if (!response.ok) throw new Error("Failed to update flight status");
+    return await response.json();
+  },
+
+  async cancelFlight(flightId: number): Promise<Flight> {
+    const response = await fetch(`${API_BASE_URL}/flights/${flightId}/cancel`, {
+      method: "PUT",
+    });
+    if (!response.ok) throw new Error("Failed to cancel flight");
+    return await response.json();
+  },
+
+  async deleteFlight(flightId: number): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/flights/${flightId}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) throw new Error("Failed to delete flight");
+  },
+
+  async bookSeats(flightId: number, seatsToBook: number): Promise<Flight> {
+    const response = await fetch(
+      `${API_BASE_URL}/flights/${flightId}/book?seatsToBook=${seatsToBook}`,
+      {
+        method: "PUT",
+      }
+    );
+    if (!response.ok) throw new Error("Failed to book seats");
+    return await response.json();
+  },
+
+  async releaseSeats(
+    flightId: number,
+    seatsToRelease: number
+  ): Promise<Flight> {
+    const response = await fetch(
+      `${API_BASE_URL}/flights/${flightId}/release?seatsToRelease=${seatsToRelease}`,
+      {
+        method: "PUT",
+      }
+    );
+    if (!response.ok) throw new Error("Failed to release seats");
+    return await response.json();
+  },
+};
+
+// Airport API
+export const airportAPI = {
+  async getAllAirports(): Promise<Airport[]> {
+    const response = await fetch(`${API_BASE_URL}/airports`);
+    if (!response.ok) throw new Error("Failed to fetch airports");
+    return await response.json();
+  },
+
+  async getAirportById(airportId: number): Promise<Airport> {
+    const response = await fetch(`${API_BASE_URL}/airports/${airportId}`);
+    if (!response.ok) throw new Error("Airport not found");
+    return await response.json();
+  },
+
+  async getAirportByCode(airportCode: string): Promise<Airport> {
+    const response = await fetch(
+      `${API_BASE_URL}/airports/code/${airportCode}`
+    );
+    if (!response.ok) throw new Error("Airport not found");
+    return await response.json();
+  },
+
+  async getAirportsByCity(city: string): Promise<Airport[]> {
+    const response = await fetch(`${API_BASE_URL}/airports/city/${city}`);
+    if (!response.ok) throw new Error("Failed to fetch airports by city");
+    return await response.json();
+  },
+
+  async getAirportsByCountry(country: string): Promise<Airport[]> {
+    const response = await fetch(`${API_BASE_URL}/airports/country/${country}`);
+    if (!response.ok) throw new Error("Failed to fetch airports by country");
+    return await response.json();
+  },
+
+  async searchAirportsByName(name: string): Promise<Airport[]> {
+    const response = await fetch(
+      `${API_BASE_URL}/airports/search/name?name=${encodeURIComponent(name)}`
+    );
+    if (!response.ok) throw new Error("Failed to search airports");
+    return await response.json();
+  },
+
+  async createAirport(
+    airportData: Omit<Airport, "airportID">
+  ): Promise<Airport> {
+    const response = await fetch(`${API_BASE_URL}/airports`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(airportData),
+    });
+    if (!response.ok) throw new Error("Failed to create airport");
+    return await response.json();
+  },
+
+  async updateAirport(
+    airportId: number,
+    airportData: Partial<Airport>
+  ): Promise<Airport> {
+    const response = await fetch(`${API_BASE_URL}/airports/${airportId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(airportData),
+    });
+    if (!response.ok) throw new Error("Failed to update airport");
+    return await response.json();
+  },
+
+  async deleteAirport(airportId: number): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/airports/${airportId}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) throw new Error("Failed to delete airport");
+  },
+};
+
+// Aircraft API
+export const aircraftAPI = {
+  async getAllAircraft(): Promise<Aircraft[]> {
+    const response = await fetch(`${API_BASE_URL}/aircraft`);
+    if (!response.ok) throw new Error("Failed to fetch aircraft");
+    return await response.json();
+  },
+
+  async getAircraftById(aircraftId: number): Promise<Aircraft> {
+    const response = await fetch(`${API_BASE_URL}/aircraft/${aircraftId}`);
+    if (!response.ok) throw new Error("Aircraft not found");
+    return await response.json();
+  },
+
+  async getAircraftByRegistration(registration: string): Promise<Aircraft> {
+    const response = await fetch(
+      `${API_BASE_URL}/aircraft/registration/${registration}`
+    );
+    if (!response.ok) throw new Error("Aircraft not found");
+    return await response.json();
+  },
+
+  async getAircraftByManufacturer(manufacturer: string): Promise<Aircraft[]> {
+    const response = await fetch(
+      `${API_BASE_URL}/aircraft/manufacturer/${manufacturer}`
+    );
+    if (!response.ok)
+      throw new Error("Failed to fetch aircraft by manufacturer");
+    return await response.json();
+  },
+
+  async getAircraftAtAirport(airportId: number): Promise<Aircraft[]> {
+    const response = await fetch(
+      `${API_BASE_URL}/aircraft/airport/${airportId}`
+    );
+    if (!response.ok) throw new Error("Failed to fetch aircraft at airport");
+    return await response.json();
+  },
+
+  async createAircraft(
+    aircraftData: Omit<Aircraft, "aircraftID">
+  ): Promise<Aircraft> {
+    const response = await fetch(`${API_BASE_URL}/aircraft`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(aircraftData),
+    });
+    if (!response.ok) throw new Error("Failed to create aircraft");
+    return await response.json();
+  },
+
+  async updateAircraft(
+    aircraftId: number,
+    aircraftData: Partial<Aircraft>
+  ): Promise<Aircraft> {
+    const response = await fetch(`${API_BASE_URL}/aircraft/${aircraftId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(aircraftData),
+    });
+    if (!response.ok) throw new Error("Failed to update aircraft");
+    return await response.json();
+  },
+
+  async deleteAircraft(aircraftId: number): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/aircraft/${aircraftId}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) throw new Error("Failed to delete aircraft");
+  },
+
+  async assignAircraftToAirport(
+    aircraftId: number,
+    airportId: number
+  ): Promise<Aircraft> {
+    const response = await fetch(
+      `${API_BASE_URL}/aircraft/${aircraftId}/assign-airport/${airportId}`,
+      {
+        method: "PUT",
+      }
+    );
+    if (!response.ok) throw new Error("Failed to assign aircraft to airport");
+    return await response.json();
+  },
+};
+
+// Passenger API
+export const passengerAPI = {
+  async getAllPassengers(): Promise<Passenger[]> {
+    const response = await fetch(`${API_BASE_URL}/passengers`);
+    if (!response.ok) throw new Error("Failed to fetch passengers");
+    return await response.json();
+  },
+
+  async getPassengerById(passengerId: number): Promise<Passenger> {
+    const response = await fetch(`${API_BASE_URL}/passengers/${passengerId}`);
+    if (!response.ok) throw new Error("Passenger not found");
+    return await response.json();
+  },
+
+  async getPassengerByUserId(userId: number): Promise<Passenger> {
+    const response = await fetch(`${API_BASE_URL}/passengers/user/${userId}`);
+    if (!response.ok) throw new Error("Passenger not found");
+    return await response.json();
+  },
+
+  async getPassengerByPassport(passportNumber: string): Promise<Passenger> {
+    const response = await fetch(
+      `${API_BASE_URL}/passengers/passport/${passportNumber}`
+    );
+    if (!response.ok) throw new Error("Passenger not found");
+    return await response.json();
+  },
+
+  async updatePassenger(
+    passengerId: number,
+    passengerData: Partial<Passenger>
+  ): Promise<Passenger> {
+    const response = await fetch(`${API_BASE_URL}/passengers/${passengerId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(passengerData),
+    });
+    if (!response.ok) throw new Error("Failed to update passenger");
+    return await response.json();
+  },
+
+  async deletePassenger(passengerId: number): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/passengers/${passengerId}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) throw new Error("Failed to delete passenger");
+  },
+};
+
+// Admin API
+export const adminAPI = {
+  async getAllAdmins(): Promise<Admin[]> {
+    const response = await fetch(`${API_BASE_URL}/admin`);
+    if (!response.ok) throw new Error("Failed to fetch admins");
+    return await response.json();
+  },
+
+  async getAdminById(adminId: number): Promise<Admin> {
+    const response = await fetch(`${API_BASE_URL}/admin/${adminId}`);
+    if (!response.ok) throw new Error("Admin not found");
+    return await response.json();
+  },
+
+  async getAdminByUserId(userId: number): Promise<Admin> {
+    const response = await fetch(`${API_BASE_URL}/admin/user/${userId}`);
+    if (!response.ok) throw new Error("Admin not found");
+    return await response.json();
+  },
+
+  async updateAdmin(
+    adminId: number,
+    adminData: Partial<Admin>
+  ): Promise<Admin> {
+    const response = await fetch(`${API_BASE_URL}/admin/${adminId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(adminData),
+    });
+    if (!response.ok) throw new Error("Failed to update admin");
+    return await response.json();
+  },
+
+  async deleteAdmin(adminId: number): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/admin/${adminId}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) throw new Error("Failed to delete admin");
+  },
+};
+
+// Crew API
+export const crewAPI = {
+  async getAllCrew(): Promise<Crew[]> {
+    const response = await fetch(`${API_BASE_URL}/crew`);
+    if (!response.ok) throw new Error("Failed to fetch crew");
+    return await response.json();
+  },
+
+  async getCrewById(crewId: number): Promise<Crew> {
+    const response = await fetch(`${API_BASE_URL}/crew/${crewId}`);
+    if (!response.ok) throw new Error("Crew member not found");
+    return await response.json();
+  },
+
+  async getCrewByUserId(userId: number): Promise<Crew> {
+    const response = await fetch(`${API_BASE_URL}/crew/user/${userId}`);
+    if (!response.ok) throw new Error("Crew member not found");
+    return await response.json();
+  },
+
+  async getCrewByPosition(position: string): Promise<Crew[]> {
+    const response = await fetch(`${API_BASE_URL}/crew/position/${position}`);
+    if (!response.ok) throw new Error("Failed to fetch crew by position");
+    return await response.json();
+  },
+
+  async updateCrew(crewId: number, crewData: Partial<Crew>): Promise<Crew> {
+    const response = await fetch(`${API_BASE_URL}/crew/${crewId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(crewData),
+    });
+    if (!response.ok) throw new Error("Failed to update crew member");
+    return await response.json();
+  },
+
+  async deleteCrew(crewId: number): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/crew/${crewId}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) throw new Error("Failed to delete crew member");
+  },
+};
+
+// Front Desk API
+export const frontDeskAPI = {
+  async getAllFrontDesk(): Promise<FrontDesk[]> {
+    const response = await fetch(`${API_BASE_URL}/frontdesk`);
+    if (!response.ok) throw new Error("Failed to fetch front desk employees");
+    return await response.json();
+  },
+
+  async getFrontDeskById(frontDeskId: number): Promise<FrontDesk> {
+    const response = await fetch(`${API_BASE_URL}/frontdesk/${frontDeskId}`);
+    if (!response.ok) throw new Error("Front desk employee not found");
+    return await response.json();
+  },
+
+  async getFrontDeskByUserId(userId: number): Promise<FrontDesk> {
+    const response = await fetch(`${API_BASE_URL}/frontdesk/user/${userId}`);
+    if (!response.ok) throw new Error("Front desk employee not found");
+    return await response.json();
+  },
+
+  async getFrontDeskByDepartment(department: string): Promise<FrontDesk[]> {
+    const response = await fetch(
+      `${API_BASE_URL}/frontdesk/department/${department}`
+    );
+    if (!response.ok)
+      throw new Error("Failed to fetch front desk by department");
+    return await response.json();
+  },
+
+  async createFrontDesk(
+    frontDeskData: Omit<FrontDesk, "frontDeskID">
+  ): Promise<FrontDesk> {
+    const response = await fetch(`${API_BASE_URL}/frontdesk`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(frontDeskData),
+    });
+    if (!response.ok) throw new Error("Failed to create front desk employee");
+    return await response.json();
+  },
+
+  async updateFrontDesk(
+    frontDeskId: number,
+    frontDeskData: Partial<FrontDesk>
+  ): Promise<FrontDesk> {
+    const response = await fetch(`${API_BASE_URL}/frontdesk/${frontDeskId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(frontDeskData),
+    });
+    if (!response.ok) throw new Error("Failed to update front desk employee");
+    return await response.json();
+  },
+
+  async deleteFrontDesk(frontDeskId: number): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/frontdesk/${frontDeskId}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) throw new Error("Failed to delete front desk employee");
+  },
+
+  async searchFrontDesk(searchTerm: string): Promise<FrontDesk[]> {
+    const response = await fetch(
+      `${API_BASE_URL}/frontdesk/search?searchTerm=${encodeURIComponent(
+        searchTerm
+      )}`
+    );
+    if (!response.ok) throw new Error("Failed to search front desk employees");
+    return await response.json();
+  },
+};
+
+// Booking API
+export const bookingAPI = {
+  async createBooking(bookingData: BookingRequest): Promise<BookingResponse> {
+    const response = await fetch(`${API_BASE_URL}/bookings`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(bookingData),
+    });
+    if (!response.ok) throw new Error("Failed to create booking");
+    return await response.json();
+  },
+
+  async getBookingsByPassenger(
+    passengerId: number
+  ): Promise<BookingResponse[]> {
+    const response = await fetch(
+      `${API_BASE_URL}/bookings/passenger/${passengerId}`
+    );
+    if (!response.ok) throw new Error("Failed to fetch bookings");
+    return await response.json();
+  },
+
+  async getBookingsByPassengerAndStatus(
+    passengerId: number,
+    status: string
+  ): Promise<BookingResponse[]> {
+    const response = await fetch(
+      `${API_BASE_URL}/bookings/passenger/${passengerId}/status?status=${status}`
+    );
+    if (!response.ok) throw new Error("Failed to fetch bookings by status");
+    return await response.json();
+  },
+
+  async getBookingById(bookingId: number): Promise<BookingResponse> {
+    const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}`);
+    if (!response.ok) throw new Error("Booking not found");
+    return await response.json();
+  },
+
+  async confirmBooking(bookingId: number): Promise<BookingResponse> {
+    const response = await fetch(
+      `${API_BASE_URL}/bookings/${bookingId}/confirm`,
+      {
+        method: "PUT",
+      }
+    );
+    if (!response.ok) throw new Error("Failed to confirm booking");
+    return await response.json();
+  },
+
+  async cancelBooking(bookingId: number): Promise<BookingResponse> {
+    const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) throw new Error("Failed to cancel booking");
+    return await response.json();
+  },
+
+  async refundBooking(bookingId: number): Promise<BookingResponse> {
+    const response = await fetch(
+      `${API_BASE_URL}/bookings/${bookingId}/refund`,
+      {
+        method: "PUT",
+      }
+    );
+    if (!response.ok) throw new Error("Failed to process refund");
+    return await response.json();
+  },
+
+  async getAllBookings(): Promise<BookingResponse[]> {
+    const response = await fetch(`${API_BASE_URL}/bookings`);
+    if (!response.ok) throw new Error("Failed to fetch all bookings");
+    return await response.json();
+  },
+};
+
+// Tickets API (placeholder - may need backend implementation)
+export const ticketsAPI = {
+  async getTicketsByPassenger(passengerId: number): Promise<any[]> {
+    // For now, use booking data as tickets
+    // This may need a separate tickets endpoint in the backend
+    const bookings = await bookingAPI.getBookingsByPassenger(passengerId);
+    return bookings.map((booking) => ({
+      ticketId: `TCK${booking.bookingID}`,
+      bookingId: booking.bookingID,
+      flightId: booking.flightID,
+      seatClass: "economy", // Default, may need to be stored in booking
+      seatNumber: booking.seatNumber || "Not assigned",
+      status: booking.status === "confirmed" ? "CheckedIn" : booking.status,
+      boardingPass:
+        booking.status === "confirmed" ? `BP${booking.bookingID}` : undefined,
+    }));
+  },
+
+  async modifyTicket(
+    ticketId: string,
+    updates: { seatNumber: string }
+  ): Promise<{ status: string; message: string }> {
+    // Placeholder - may need backend implementation
+    return { status: "Success", message: "Ticket modified successfully" };
+  },
+};
+
+// Payments API (placeholder - may need backend implementation)
+export const paymentsAPI = {
+  async createPayment(paymentData: {
+    userId: number;
+    bookingId: number;
+    amount: number;
+    method: string;
+  }): Promise<{ paymentId: string; status: string; message: string }> {
+    // Placeholder - may need backend implementation
+    // For now, simulate payment processing
+    const isSuccess = Math.random() > 0.2; // 80% success rate
+    if (isSuccess) {
+      // Confirm the booking after payment
+      try {
+        await bookingAPI.confirmBooking(paymentData.bookingId);
+        return {
+          paymentId: `PMT${Date.now()}`,
+          status: "Success",
+          message: "Payment successful",
+        };
+      } catch (error) {
+        return {
+          paymentId: "",
+          status: "Failed",
+          message: "Payment failed: Could not confirm booking",
+        };
+      }
+    } else {
+      return {
+        paymentId: "",
+        status: "Failed",
+        message: "Insufficient funds",
+      };
+    }
+  },
+
+  async getPaymentStatus(
+    paymentId: string
+  ): Promise<{ status: string; message: string }> {
+    // Placeholder - may need backend implementation
+    return { status: "Success", message: "Payment completed" };
+  },
 };
