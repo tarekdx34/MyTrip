@@ -23,13 +23,17 @@ public class CrewService {
     @Autowired
     private UserService userService;
 
+    public boolean existsById(Long crewId) {
+        return crewRepository.existsById(crewId);
+    }
+
     // Basic CRUD operations
     public Optional<Crew> findById(Long id) {
         return crewRepository.findById(id);
     }
 
     public Optional<Crew> findByUserId(Long userId) {
-        return crewRepository.findByUserUserID(userId);  // Updated to match entity field name
+        return crewRepository.findByUserUserID(userId); // Updated to match entity field name
     }
 
     public Optional<Crew> findByEmployeeNumber(String employeeNumber) {
@@ -72,10 +76,10 @@ public class CrewService {
         if (currentUser == null) {
             return false;
         }
-        
+
         Optional<Crew> crew = findById(crewId);
-        return crew.isPresent() && 
-               crew.get().getUser().getUserID().equals(currentUser.getUserID());
+        return crew.isPresent() &&
+                crew.get().getUser().getUserID().equals(currentUser.getUserID());
     }
 
     public boolean employeeNumberExists(String employeeNumber) {
@@ -154,15 +158,15 @@ public class CrewService {
             // License required for pilots, optional for others
             return position != Crew.Position.PILOT && position != Crew.Position.CO_PILOT;
         }
-        
-        return licenseNumber.trim().length() >= 5 && 
-               licenseNumber.trim().length() <= 100;
+
+        return licenseNumber.trim().length() >= 5 &&
+                licenseNumber.trim().length() <= 100;
     }
 
     public boolean isValidEmployeeNumber(String employeeNumber) {
-        return employeeNumber != null && 
-               employeeNumber.trim().length() >= 3 && 
-               employeeNumber.trim().length() <= 50;
+        return employeeNumber != null &&
+                employeeNumber.trim().length() >= 3 &&
+                employeeNumber.trim().length() <= 50;
     }
 
     public boolean requiresLicense(Crew.Position position) {
@@ -172,7 +176,7 @@ public class CrewService {
     // Search and filter methods
     public List<Crew> searchCrew(String searchTerm) {
         return crewRepository.findByEmployeeNumberContainingOrLicenseNumberContaining(
-            searchTerm, searchTerm);
+                searchTerm, searchTerm);
     }
 
     public List<Crew> getPilots() {
@@ -208,16 +212,17 @@ public class CrewService {
     }
 
     public long getTotalFlightCrew() {
-        return countByPosition(Crew.Position.PILOT) + 
-               countByPosition(Crew.Position.CO_PILOT);
+        return countByPosition(Crew.Position.PILOT) +
+                countByPosition(Crew.Position.CO_PILOT);
     }
 
     public long getTotalCabinCrew() {
-        return countByPosition(Crew.Position.FLIGHT_ATTENDANT) + 
-               countByPosition(Crew.Position.CABIN_CREW);
+        return countByPosition(Crew.Position.FLIGHT_ATTENDANT) +
+                countByPosition(Crew.Position.CABIN_CREW);
     }
 
-    // Crew assignment helpers (to be expanded when CrewAssignmentService is available)
+    // Crew assignment helpers (to be expanded when CrewAssignmentService is
+    // available)
     public boolean canBeAssignedToFlight(Long crewId, Long flightId) {
         // Check crew availability, qualifications, etc.
         Optional<Crew> crew = findById(crewId);
@@ -227,8 +232,8 @@ public class CrewService {
 
         // For pilots and co-pilots, ensure they have valid licenses
         if (requiresLicense(crew.get().getPosition())) {
-            return crew.get().getLicenseNumber() != null && 
-                   !crew.get().getLicenseNumber().trim().isEmpty();
+            return crew.get().getLicenseNumber() != null &&
+                    !crew.get().getLicenseNumber().trim().isEmpty();
         }
 
         return true;

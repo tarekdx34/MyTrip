@@ -2,9 +2,14 @@ package com.mytrip.airline.controller;
 
 import com.mytrip.airline.entity.Crew;
 import com.mytrip.airline.service.CrewService;
+import com.mytrip.airline.service.CrewAssignmentService;
+import com.mytrip.airline.service.FlightReportService;
+import com.mytrip.airline.service.BookingService;
+import com.mytrip.airline.dto.BookingResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import com.mytrip.airline.dto.CrewAssignmentResponse;
 // Comment out PreAuthorize for development
 // import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -19,6 +24,15 @@ public class CrewController {
 
     @Autowired
     private CrewService crewService;
+
+    @Autowired
+    private CrewAssignmentService crewAssignmentService;
+
+    @Autowired
+    private FlightReportService flightReportService;
+
+    @Autowired
+    private BookingService bookingService;
 
     @GetMapping("/{id}")
     // @PreAuthorize("hasRole('ADMIN') or hasRole('CREW')")
@@ -148,8 +162,8 @@ public class CrewController {
     // @PreAuthorize("hasRole('ADMIN') or @crewService.isCurrentCrew(#id)")
     public ResponseEntity<?> viewCrewSchedule(@PathVariable Long id) {
         try {
-            // This will be implemented when CrewAssignmentService is available
-            return ResponseEntity.ok("Crew schedule endpoint - implement with CrewAssignmentService");
+            Object schedule = crewAssignmentService.getCrewSchedule(id);
+            return ResponseEntity.ok(schedule);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Error retrieving crew schedule: " + e.getMessage());
@@ -160,23 +174,25 @@ public class CrewController {
     // @PreAuthorize("hasRole('ADMIN') or @crewService.isCurrentCrew(#id)")
     public ResponseEntity<?> getCrewAssignments(@PathVariable Long id) {
         try {
-            // This will be implemented when CrewAssignmentService is available
-            return ResponseEntity.ok("Crew assignments endpoint - implement with CrewAssignmentService");
+            List<CrewAssignmentResponse> assignments = crewAssignmentService.getCrewAssignments(id);
+            return ResponseEntity.ok(assignments);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Error retrieving crew assignments: " + e.getMessage());
         }
     }
 
-    @GetMapping("/{id}/passengers")
+    // Updated to use actual BookingService methods
+    @GetMapping("/{id}/flight/{flightId}/passengers")
     // @PreAuthorize("hasRole('ADMIN') or @crewService.isCurrentCrew(#id)")
-    public ResponseEntity<?> checkPassengers(@PathVariable Long id, @RequestParam Long flightId) {
+    public ResponseEntity<?> checkFlightPassengers(@PathVariable Long id, @PathVariable Long flightId) {
         try {
-            // This will be implemented when FlightService and BookingService are available
-            return ResponseEntity.ok("Check passengers endpoint - implement with FlightService and BookingService");
+            // Use the actual BookingService method to get bookings by flight
+            List<BookingResponse> bookings = bookingService.getBookingsByFlight(flightId);
+            return ResponseEntity.ok(bookings);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Error checking passengers: " + e.getMessage());
+                .body("Error checking flight passengers: " + e.getMessage());
         }
     }
 
@@ -184,8 +200,8 @@ public class CrewController {
     // @PreAuthorize("hasRole('ADMIN') or @crewService.isCurrentCrew(#id)")
     public ResponseEntity<?> reportFlight(@PathVariable Long id, @RequestBody Object flightReport) {
         try {
-            // This will be implemented when FlightReportService is available
-            return ResponseEntity.ok("Flight report endpoint - implement with FlightReportService");
+            Object report = flightReportService.reportFlight(id, flightReport);
+            return ResponseEntity.ok(report);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Error submitting flight report: " + e.getMessage());
@@ -199,8 +215,8 @@ public class CrewController {
                                               @RequestParam(required = false) String startDate,
                                               @RequestParam(required = false) String endDate) {
         try {
-            // This will be implemented when CrewAssignmentService is available
-            return ResponseEntity.ok("Available crew endpoint - implement with CrewAssignmentService");
+            List<Crew> availableCrew = crewAssignmentService.getAvailableCrew(position, startDate, endDate);
+            return ResponseEntity.ok(availableCrew);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Error retrieving available crew: " + e.getMessage());
@@ -223,8 +239,8 @@ public class CrewController {
     // @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> getCrewStatsByPosition() {
         try {
-            // This will return counts of crew members by position
-            return ResponseEntity.ok("Crew stats by position - implement specific counting logic");
+            Object stats = crewService.getCrewStatsByPosition();
+            return ResponseEntity.ok(stats);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Error retrieving crew position stats: " + e.getMessage());

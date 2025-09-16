@@ -84,38 +84,6 @@ public class PassengerService {
         return passengerRepository.countByNationality(nationality);
     }
 
-    // Passenger-specific business methods (to be implemented with other services)
-    public List<Object> getPassengerBookings(Long passengerId) {
-        // This will be implemented when BookingService is available
-        // For now, return empty list or placeholder
-        return List.of("Passenger bookings - implement with BookingService");
-    }
-
-    public Object makeBooking(Long passengerId, Object bookingData) {
-        // This will be implemented when BookingService is available
-        return "Make booking - implement with BookingService";
-    }
-
-    public boolean cancelBooking(Long passengerId, Long bookingId) {
-        // This will be implemented when BookingService is available
-        return false;
-    }
-
-    public Object searchFlights(Long passengerId, Object searchCriteria) {
-        // This will be implemented when FlightService is available
-        return "Search flights - implement with FlightService";
-    }
-
-    public Object checkIn(Long passengerId, Long bookingId) {
-        // This will be implemented when CheckinService is available
-        return "Check-in - implement with CheckinService";
-    }
-
-    public Object makePayment(Long passengerId, Long bookingId, Object paymentData) {
-        // This will be implemented when PaymentService is available
-        return "Make payment - implement with PaymentService";
-    }
-
     // Validation methods
     public boolean isValidPassportNumber(String passportNumber) {
         // Basic passport number validation
