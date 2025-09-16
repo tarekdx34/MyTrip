@@ -123,11 +123,6 @@ const AdminDashboard = () => {
     country: "",
   });
 
-  const [crewAssignmentForm, setCrewAssignmentForm] = useState({
-    flightId: "",
-    crewMembers: [],
-  });
-
   // Load initial data
   useEffect(() => {
     loadAllData();
@@ -146,7 +141,7 @@ const AdminDashboard = () => {
         crewData,
         adminsData,
         frontDeskData,
-        crewAssignmentsData,
+        crewAssignmentsData, // Load actual crew assignments
       ] = await Promise.all([
         flightAPI.getAllFlights().catch(() => []),
         userAPI.getAllUsers().catch(() => []),
@@ -157,8 +152,7 @@ const AdminDashboard = () => {
         crewAPI.getAllCrew().catch(() => []),
         adminAPI.getAllAdmins().catch(() => []),
         frontDeskAPI.getAllFrontDesk().catch(() => []),
-        // Load crew assignments - we'll create a mock structure since there's no dedicated crew assignment API
-        Promise.resolve([]).catch(() => []),
+        crewAssignmentAPI.getAllAssignments().catch(() => []), // Use actual API
       ]);
 
       setFlights(flightsData);
@@ -178,7 +172,6 @@ const AdminDashboard = () => {
       setLoading(false);
     }
   };
-
   const showAlert = (message, type = "success") => {
     setAlert({ message, type });
     setTimeout(() => setAlert(null), 5000);
@@ -655,38 +648,46 @@ const AdminDashboard = () => {
 
   // Crew Assignment Management
   const handleAssignCrew = async () => {
-    if (
-      !crewAssignmentForm.flightId ||
-      crewAssignmentForm.crewMembers.length === 0
-    ) {
-      showAlert("Please select a flight and at least one crew member", "error");
-      return;
-    }
-
     setLoading(true);
     try {
-      // Build payloads for each selected crew member
-      const assignmentsToSave = crewAssignmentForm.crewMembers.map(
-        (crewId) => ({
-          flightID: parseInt(crewAssignmentForm.flightId),
-          crewID: parseInt(crewId),
-          assignmentDate: new Date().toISOString(),
-          assignedBy: "admin", // Or current user info
-          status: "assigned",
-        })
+      const currentAdminId = localStorage.getItem("userId");
+
+      let assignedByAdminId = null;
+      try {
+        const currentAdmin = await adminAPI.getAdminByUserId(
+          parseInt(currentAdminId)
+        );
+        assignedByAdminId = currentAdmin.adminID;
+      } catch (error) {
+        console.warn(
+          "Could not find admin record, proceeding without assignedBy"
+        );
+      }
+
+      // Create assignments using crewID directly
+      const assignmentPromises = crewAssignmentForm.crewMembers.map(
+        async (crewId) => {
+          const assignmentData = {
+            flightID: parseInt(crewAssignmentForm.flightId),
+            crewID: parseInt(crewId), // Use crewID directly
+            assignmentDate: new Date().toISOString(),
+            assignedBy: assignedByAdminId,
+            status: "assigned",
+          };
+
+          return await crewAssignmentAPI.createAssignment(assignmentData);
+        }
       );
 
-      // Call backend for each assignment
-      const savedAssignments = await Promise.all(
-        assignmentsToSave.map((a) => crewAssignmentAPI.createAssignment(a))
-      );
-
-      // Update local state with what backend returned
+      const savedAssignments = await Promise.all(assignmentPromises);
       setCrewAssignments((prev) => [...prev, ...savedAssignments]);
 
-      showAlert("Crew assigned to flight successfully");
+      showAlert(
+        `Successfully assigned ${savedAssignments.length} crew member(s) to flight`
+      );
       setShowCrewAssignmentModal(false);
       resetCrewAssignmentForm();
+      loadAllData();
     } catch (error) {
       console.error("Failed to assign crew:", error);
       showAlert(error?.message || "Failed to assign crew", "error");
@@ -703,10 +704,9 @@ const AdminDashboard = () => {
     try {
       await crewAssignmentAPI.deleteAssignment(assignmentId);
 
-      setCrewAssignments(
-        crewAssignments.filter(
-          (assignment) => assignment.assignmentID !== assignmentId
-        )
+      // Update local state
+      setCrewAssignments((prev) =>
+        prev.filter((assignment) => assignment.assignmentID !== assignmentId)
       );
 
       showAlert("Crew assignment removed successfully");
@@ -717,6 +717,169 @@ const AdminDashboard = () => {
       setLoading(false);
     }
   };
+  const handleCompleteAssignment = async (assignmentId) => {
+    setLoading(true);
+    try {
+      const updatedAssignment = await crewAssignmentAPI.completeAssignment(
+        assignmentId
+      );
+
+      // Update local state
+      setCrewAssignments((prev) =>
+        prev.map((assignment) =>
+          assignment.assignmentID === assignmentId
+            ? { ...assignment, status: "completed" }
+            : assignment
+        )
+      );
+
+      showAlert("Assignment marked as completed");
+    } catch (error) {
+      console.error("Failed to complete assignment:", error);
+      showAlert(error?.message || "Failed to complete assignment", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+  const handleCancelAssignment = async (assignmentId) => {
+    if (!confirm("Are you sure you want to cancel this assignment?")) return;
+
+    setLoading(true);
+    try {
+      const updatedAssignment = await crewAssignmentAPI.cancelAssignment(
+        assignmentId
+      );
+
+      // Update local state
+      setCrewAssignments((prev) =>
+        prev.map((assignment) =>
+          assignment.assignmentID === assignmentId
+            ? { ...assignment, status: "cancelled" }
+            : assignment
+        )
+      );
+
+      showAlert("Assignment cancelled");
+    } catch (error) {
+      console.error("Failed to cancel assignment:", error);
+      showAlert(error?.message || "Failed to cancel assignment", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+  const getCrewAssignmentsForFlight = (flightId) => {
+    return crewAssignments.filter(
+      (assignment) =>
+        assignment.flightID === flightId && assignment.status !== "cancelled"
+    );
+  };
+  const getFlightAssignmentsForCrew = (crewId) => {
+    return crewAssignments.filter(
+      (assignment) =>
+        assignment.crewID === crewId && assignment.status !== "cancelled"
+    );
+  };
+  const isCrewAssignedToFlight = (crewId, flightId) => {
+    return crewAssignments.some(
+      (assignment) =>
+        assignment.crewID === crewId &&
+        assignment.flightID === flightId &&
+        assignment.status === "assigned"
+    );
+  };
+  // Updated crew assignment form validation
+  const validateCrewAssignment = () => {
+    if (!crewAssignmentForm.flightId) {
+      showAlert("Please select a flight", "error");
+      return false;
+    }
+
+    if (crewAssignmentForm.crewMembers.length === 0) {
+      showAlert("Please select at least one crew member", "error");
+      return false;
+    }
+
+    // Check for duplicate assignments
+    const duplicates = crewAssignmentForm.crewMembers.filter((crewId) =>
+      isCrewAssignedToFlight(
+        parseInt(crewId),
+        parseInt(crewAssignmentForm.flightId)
+      )
+    );
+
+    if (duplicates.length > 0) {
+      showAlert(
+        "Some crew members are already assigned to this flight",
+        "error"
+      );
+      return false;
+    }
+
+    return true;
+  };
+
+  // Update the handleAssignCrew to use validation
+  const handleAssignCrewWithValidation = async () => {
+    if (!validateCrewAssignment()) {
+      return;
+    }
+
+    await handleAssignCrew();
+  };
+  const getCrewWithUserData = () => {
+    return crew.map((crewMember) => {
+      const user = users.find((u) => u.userID === crewMember.userID);
+      return {
+        ...crewMember,
+        user: user || null,
+        name: user?.name || "Unknown User",
+        email: user?.email || "No email",
+        hasUserData: !!user,
+      };
+    });
+  };
+
+  // Search and filter functions
+  const filterFlights = () => {
+    return flights.filter((flight) => {
+      const matchesSearch =
+        !searchTerm ||
+        flight.flightNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        flight.departureAirport?.name
+          ?.toLowerCase()
+          .includes(searchTerm.toLowerCase()) ||
+        flight.arrivalAirport?.name
+          ?.toLowerCase()
+          .includes(searchTerm.toLowerCase());
+
+      const matchesStatus = !statusFilter || flight.status === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  };
+  const getCrewUsers = () => {
+    const crewUsers = users.filter((user) => user.userType === "crew");
+    return crewUsers
+      .map((user) => {
+        const crewDetails = crew.find((c) => c.userID === user.userID);
+        return {
+          ...user,
+          crewDetails: crewDetails || null,
+          crewID: crewDetails?.crewID || null,
+          position: crewDetails?.position || "crew",
+          employeeNumber: crewDetails?.employeeNumber || null,
+          licenseNumber: crewDetails?.licenseNumber || null,
+        };
+      })
+      .filter((user) => user.crewID !== null); // Only return users with valid crew records
+  };
+
+  // Updated crew assignment form state - use userID instead of crewID
+  const [crewAssignmentForm, setCrewAssignmentForm] = useState({
+    flightId: "",
+    crewMembers: [], // Will store userIDs of crew members
+  });
+
   const resetCrewAssignmentForm = () => {
     setCrewAssignmentForm({
       flightId: "",
@@ -740,26 +903,26 @@ const AdminDashboard = () => {
       });
     }
   };
-
-  // Search and filter functions
-  const filterFlights = () => {
-    return flights.filter((flight) => {
-      const matchesSearch =
-        !searchTerm ||
-        flight.flightNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        flight.departureAirport?.name
-          ?.toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        flight.arrivalAirport?.name
-          ?.toLowerCase()
-          .includes(searchTerm.toLowerCase());
-
-      const matchesStatus = !statusFilter || flight.status === statusFilter;
-
-      return matchesSearch && matchesStatus;
+  const getCrewUsersWithStatus = () => {
+    const crewUsers = users.filter((user) => user.userType === "crew");
+    return crewUsers.map((user) => {
+      const crewDetails = crew.find((c) => c.userID === user.userID);
+      return {
+        ...user,
+        crewDetails: crewDetails || null,
+        crewID: crewDetails?.crewID || null,
+        position: crewDetails?.position || "crew",
+        employeeNumber: crewDetails?.employeeNumber || null,
+        licenseNumber: crewDetails?.licenseNumber || null,
+        hasCrewRecord: !!crewDetails,
+      };
     });
   };
-
+  useEffect(() => {
+    console.log("Loaded users:", users);
+    console.log("Loaded crew:", crew);
+    console.log("Crew with user data:", getCrewWithUserData());
+  }, [users, crew]);
   const filterUsers = () => {
     return users.filter((user) => {
       const matchesSearch =
@@ -2953,7 +3116,7 @@ const AdminDashboard = () => {
       )}
       {showCrewAssignmentModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-10 mx-auto p-5 border w-[600px] shadow-lg rounded-md bg-white">
+          <div className="relative top-10 mx-auto p-5 border w-[700px] shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-gray-900">
                 Assign Crew to Flight
@@ -2970,6 +3133,7 @@ const AdminDashboard = () => {
             </div>
 
             <div className="space-y-6">
+              {/* Flight Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Select Flight *
@@ -2986,18 +3150,25 @@ const AdminDashboard = () => {
                 >
                   <option value="">Choose a flight...</option>
                   {flights
-                    .filter((flight) => flight.status === "Scheduled") // Only show scheduled flights
+                    .filter((flight) => flight.status === "scheduled")
                     .map((flight) => (
                       <option key={flight.flightID} value={flight.flightID}>
                         {flight.flightNumber} -{" "}
                         {flight.departureAirport?.airportCode} →{" "}
-                        {flight.arrivalAirport?.airportCode}(
+                        {flight.arrivalAirport?.airportCode} (
                         {formatDateTime(flight.departureTime)})
                       </option>
                     ))}
                 </select>
+                {flights.filter((f) => f.status === "scheduled").length ===
+                  0 && (
+                  <p className="text-sm text-amber-600 mt-1">
+                    No scheduled flights available for crew assignment
+                  </p>
+                )}
               </div>
 
+              {/* Crew Members Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Select Crew Members *
@@ -3005,87 +3176,194 @@ const AdminDashboard = () => {
                     ({crewAssignmentForm.crewMembers.length} selected)
                   </span>
                 </label>
+
                 <div className="border border-gray-300 rounded-md p-4 max-h-64 overflow-y-auto">
-                  {crew.length === 0 ? (
-                    <p className="text-gray-500 text-center py-4">
-                      No crew members available
-                    </p>
-                  ) : (
-                    <div className="space-y-2">
-                      {crew.map((crewMember) => {
-                        const user = users.find(
-                          (u) => u.userID === crewMember.userID
-                        );
-                        return (
-                          <div
-                            key={crewMember.crewID}
-                            className="flex items-center space-x-3"
-                          >
-                            <input
-                              type="checkbox"
-                              id={`crew-${crewMember.crewID}`}
-                              checked={crewAssignmentForm.crewMembers.includes(
-                                crewMember.crewID.toString()
-                              )}
-                              onChange={() =>
-                                handleCrewMemberToggle(crewMember.crewID)
-                              }
-                              className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                            />
-                            <label
-                              htmlFor={`crew-${crewMember.crewID}`}
-                              className="flex-1 flex items-center justify-between cursor-pointer"
+                  {(() => {
+                    const crewWithUserData = getCrewWithUserData();
+
+                    if (crewWithUserData.length === 0) {
+                      return (
+                        <div className="text-center py-8">
+                          <Users className="mx-auto h-12 w-12 text-gray-400" />
+                          <p className="text-gray-500 mt-2">
+                            No crew members available
+                          </p>
+                          <p className="text-gray-400 text-sm">
+                            Add crew members first to assign them to flights
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-2">
+                        {crewWithUserData.map((crewMember) => {
+                          const isAlreadyAssigned =
+                            crewAssignmentForm.flightId &&
+                            isCrewAssignedToFlight(
+                              crewMember.crewID,
+                              parseInt(crewAssignmentForm.flightId)
+                            );
+                          const isDisabled = isAlreadyAssigned; // Remove the user data requirement
+
+                          return (
+                            <div
+                              key={crewMember.crewID}
+                              className={`flex items-center space-x-3 p-2 rounded-md transition-colors ${
+                                isDisabled
+                                  ? "bg-gray-50 opacity-60"
+                                  : "hover:bg-gray-50"
+                              }`}
                             >
-                              <div>
-                                <span className="font-medium text-gray-900">
-                                  {user?.name || "Unknown"}
-                                </span>
-                                <span className="ml-2 text-gray-500 text-sm">
-                                  ({user?.email || "No email"})
-                                </span>
-                              </div>
-                              <span
-                                className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ml-4 ${
-                                  crewMember.position === "Pilot"
-                                    ? "bg-blue-100 text-blue-800"
-                                    : crewMember.position === "Co-Pilot"
-                                    ? "bg-purple-100 text-purple-800"
-                                    : crewMember.position === "Flight Attendant"
-                                    ? "bg-green-100 text-green-800"
-                                    : "bg-gray-100 text-gray-800"
+                              <input
+                                type="checkbox"
+                                id={`crew-${crewMember.crewID}`}
+                                checked={crewAssignmentForm.crewMembers.includes(
+                                  crewMember.crewID.toString()
+                                )}
+                                disabled={isDisabled}
+                                onChange={() =>
+                                  handleCrewMemberToggle(crewMember.crewID)
+                                }
+                                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                              />
+
+                              <label
+                                htmlFor={`crew-${crewMember.crewID}`}
+                                className={`flex-1 flex items-center justify-between ${
+                                  isDisabled
+                                    ? "cursor-not-allowed"
+                                    : "cursor-pointer"
                                 }`}
                               >
-                                {crewMember.position || "Crew"}
-                              </span>
-                            </label>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                                <div className="flex-1">
+                                  <div className="flex items-center space-x-2">
+                                    <span className="font-medium text-gray-900">
+                                      {crewMember.name}
+                                    </span>
+                                    {crewMember.employeeNumber && (
+                                      <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">
+                                        {crewMember.employeeNumber}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div className="flex items-center space-x-2 mt-1">
+                                    <span className="text-gray-500 text-sm">
+                                      {crewMember.email}
+                                    </span>
+                                    {crewMember.licenseNumber && (
+                                      <span className="text-gray-400 text-xs">
+                                        License: {crewMember.licenseNumber}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div className="flex items-center space-x-2 mt-1">
+                                    {!crewMember.hasUserData && (
+                                      <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
+                                        <AlertCircle className="w-3 h-3 mr-1" />
+                                        Missing User Data
+                                      </span>
+                                    )}
+                                    {isAlreadyAssigned && (
+                                      <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
+                                        <CheckCircle className="w-3 h-3 mr-1" />
+                                        Already Assigned
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <span
+                                  className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ml-4 ${
+                                    crewMember.position === "pilot"
+                                      ? "bg-blue-100 text-blue-800"
+                                      : crewMember.position === "co_pilot"
+                                      ? "bg-purple-100 text-purple-800"
+                                      : crewMember.position ===
+                                        "flight_attendant"
+                                      ? "bg-green-100 text-green-800"
+                                      : crewMember.position === "cabin_crew"
+                                      ? "bg-orange-100 text-orange-800"
+                                      : "bg-gray-100 text-gray-800"
+                                  }`}
+                                >
+                                  {crewMember.position
+                                    ? crewMember.position
+                                        .replace("_", " ")
+                                        .replace(/\b\w/g, (l) =>
+                                          l.toUpperCase()
+                                        )
+                                    : "Crew"}
+                                </span>
+                              </label>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </div>
+
                 {crewAssignmentForm.crewMembers.length > 0 && (
-                  <div className="mt-2 text-sm text-gray-600">
-                    <strong>Selected crew positions:</strong>
-                    <div className="flex flex-wrap gap-1 mt-1">
+                  <div className="mt-3 p-3 bg-indigo-50 rounded-md">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-indigo-900">
+                        Selected Crew Members (
+                        {crewAssignmentForm.crewMembers.length})
+                      </span>
+                      <button
+                        onClick={() =>
+                          setCrewAssignmentForm({
+                            ...crewAssignmentForm,
+                            crewMembers: [],
+                          })
+                        }
+                        className="text-indigo-600 hover:text-indigo-800 text-xs"
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
                       {crewAssignmentForm.crewMembers.map((crewId) => {
-                        const crewMember = crew.find(
+                        const crewMember = getCrewWithUserData().find(
                           (c) => c.crewID === parseInt(crewId)
                         );
                         return (
                           <span
                             key={crewId}
-                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              crewMember?.position === "Pilot"
+                            className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
+                              crewMember?.position === "pilot"
                                 ? "bg-blue-100 text-blue-800"
-                                : crewMember?.position === "Co-Pilot"
+                                : crewMember?.position === "co_pilot"
                                 ? "bg-purple-100 text-purple-800"
-                                : crewMember?.position === "Flight Attendant"
+                                : crewMember?.position === "flight_attendant"
                                 ? "bg-green-100 text-green-800"
+                                : crewMember?.position === "cabin_crew"
+                                ? "bg-orange-100 text-orange-800"
                                 : "bg-gray-100 text-gray-800"
                             }`}
+                            title={`${crewMember?.name} (${crewMember?.email})`}
                           >
-                            {crewMember?.position || "Crew"}
+                            {crewMember?.name
+                              ?.split(" ")
+                              .map((n) => n[0])
+                              .join("") || "UK"}{" "}
+                            -
+                            {crewMember?.position
+                              ? crewMember.position
+                                  .replace("_", " ")
+                                  .replace(/\b\w/g, (l) => l.toUpperCase())
+                              : "Crew"}
+                            <button
+                              onClick={() =>
+                                handleCrewMemberToggle(parseInt(crewId))
+                              }
+                              className="ml-1 hover:bg-white hover:bg-opacity-20 rounded-full"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
                           </span>
                         );
                       })}
@@ -3094,9 +3372,11 @@ const AdminDashboard = () => {
                 )}
               </div>
 
+              {/* Flight Details */}
               {crewAssignmentForm.flightId && (
                 <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="text-sm font-medium text-gray-900 mb-2">
+                  <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center">
+                    <Plane className="w-4 h-4 mr-2" />
                     Flight Details
                   </h4>
                   {(() => {
@@ -3104,42 +3384,141 @@ const AdminDashboard = () => {
                       (f) =>
                         f.flightID === parseInt(crewAssignmentForm.flightId)
                     );
+                    const currentAssignments = getCrewAssignmentsForFlight(
+                      parseInt(crewAssignmentForm.flightId)
+                    );
+
                     return selectedFlight ? (
-                      <div className="text-sm text-gray-600 space-y-1">
-                        <p>
-                          <strong>Flight:</strong> {selectedFlight.flightNumber}
-                        </p>
-                        <p>
-                          <strong>Route:</strong>{" "}
-                          {selectedFlight.departureAirport?.name} →{" "}
-                          {selectedFlight.arrivalAirport?.name}
-                        </p>
-                        <p>
-                          <strong>Departure:</strong>{" "}
-                          {formatDateTime(selectedFlight.departureTime)}
-                        </p>
-                        <p>
-                          <strong>Arrival:</strong>{" "}
-                          {formatDateTime(selectedFlight.arrivalTime)}
-                        </p>
-                        <p>
-                          <strong>Aircraft:</strong>{" "}
-                          {selectedFlight.aircraft?.aircraftModel} (
-                          {selectedFlight.aircraft?.registration})
-                        </p>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <div className="text-gray-600 space-y-1">
+                              <p>
+                                <strong>Flight:</strong>{" "}
+                                {selectedFlight.flightNumber}
+                              </p>
+                              <p>
+                                <strong>Route:</strong>{" "}
+                                {selectedFlight.departureAirport?.name} →{" "}
+                                {selectedFlight.arrivalAirport?.name}
+                              </p>
+                              <p>
+                                <strong>Aircraft:</strong>{" "}
+                                {selectedFlight.aircraft?.aircraftModel} (
+                                {selectedFlight.aircraft?.registration})
+                              </p>
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-gray-600 space-y-1">
+                              <p>
+                                <strong>Departure:</strong>{" "}
+                                {formatDateTime(selectedFlight.departureTime)}
+                              </p>
+                              <p>
+                                <strong>Arrival:</strong>{" "}
+                                {formatDateTime(selectedFlight.arrivalTime)}
+                              </p>
+                              <p>
+                                <strong>Status:</strong>
+                                <span className="ml-1 inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                  {selectedFlight.status}
+                                </span>
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {currentAssignments.length > 0 && (
+                          <div className="pt-3 border-t border-gray-200">
+                            <h5 className="text-sm font-medium text-gray-700 mb-2 flex items-center">
+                              <Users className="w-4 h-4 mr-1" />
+                              Currently Assigned Crew (
+                              {currentAssignments.length})
+                            </h5>
+                            <div className="grid grid-cols-1 gap-2">
+                              {currentAssignments.map((assignment) => {
+                                const crewRecord = crew.find(
+                                  (c) => c.crewID === assignment.crewID
+                                );
+                                const user = users.find(
+                                  (u) => u.userID === crewRecord?.userID
+                                );
+                                return (
+                                  <div
+                                    key={assignment.assignmentID}
+                                    className="flex items-center justify-between p-2 bg-white rounded border"
+                                  >
+                                    <div className="flex items-center space-x-2">
+                                      <span className="font-medium text-sm">
+                                        {user?.name || "Unknown"}
+                                      </span>
+                                      <span
+                                        className={`inline-flex px-2 py-1 text-xs rounded-full ${
+                                          crewRecord?.position === "pilot"
+                                            ? "bg-blue-100 text-blue-800"
+                                            : crewRecord?.position ===
+                                              "co_pilot"
+                                            ? "bg-purple-100 text-purple-800"
+                                            : crewRecord?.position ===
+                                              "flight_attendant"
+                                            ? "bg-green-100 text-green-800"
+                                            : crewRecord?.position ===
+                                              "cabin_crew"
+                                            ? "bg-orange-100 text-orange-800"
+                                            : "bg-gray-100 text-gray-800"
+                                        }`}
+                                      >
+                                        {crewRecord?.position?.replace(
+                                          "_",
+                                          " "
+                                        ) || "Crew"}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <span
+                                        className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                                          assignment.status === "assigned"
+                                            ? "bg-green-100 text-green-800"
+                                            : assignment.status === "completed"
+                                            ? "bg-blue-100 text-blue-800"
+                                            : "bg-gray-100 text-gray-800"
+                                        }`}
+                                      >
+                                        {assignment.status}
+                                      </span>
+                                      <button
+                                        onClick={() =>
+                                          handleRemoveCrewAssignment(
+                                            assignment.assignmentID
+                                          )
+                                        }
+                                        className="text-red-600 hover:text-red-800 p-1"
+                                        title="Remove assignment"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : null;
                   })()}
                 </div>
               )}
 
-              <div className="flex justify-end space-x-3 pt-4">
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-3 pt-4 border-t">
                 <button
                   onClick={() => {
                     setShowCrewAssignmentModal(false);
                     resetCrewAssignmentForm();
                   }}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-transparent rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-transparent rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
                 >
                   Cancel
                 </button>
@@ -3150,7 +3529,7 @@ const AdminDashboard = () => {
                     !crewAssignmentForm.flightId ||
                     crewAssignmentForm.crewMembers.length === 0
                   }
-                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {loading ? (
                     <>
@@ -3158,7 +3537,11 @@ const AdminDashboard = () => {
                       Assigning...
                     </>
                   ) : (
-                    "Assign Crew"
+                    <>
+                      <UserCheck className="w-4 h-4 mr-2" />
+                      Assign {crewAssignmentForm.crewMembers.length} Crew Member
+                      {crewAssignmentForm.crewMembers.length !== 1 ? "s" : ""}
+                    </>
                   )}
                 </button>
               </div>
