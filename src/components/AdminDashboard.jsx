@@ -11,6 +11,7 @@ import {
   crewAPI,
   frontDeskAPI,
   authAPI, // Added missing import
+  crewAssignmentAPI,
 } from "../services/api";
 import {
   LineChart,
@@ -664,27 +665,31 @@ const AdminDashboard = () => {
 
     setLoading(true);
     try {
-      // For now, we'll store crew assignments in local state
-      // In a real application, you'd need to implement crew assignment endpoints in the backend
-      const newAssignment = {
-        id: Date.now(),
-        flightId: parseInt(crewAssignmentForm.flightId),
-        flight: flights.find(
-          (f) => f.flightID === parseInt(crewAssignmentForm.flightId)
-        ),
-        crewMembers: crewAssignmentForm.crewMembers
-          .map((crewId) => crew.find((c) => c.crewID === parseInt(crewId)))
-          .filter(Boolean),
-        assignedDate: new Date().toISOString(),
-      };
+      // Build payloads for each selected crew member
+      const assignmentsToSave = crewAssignmentForm.crewMembers.map(
+        (crewId) => ({
+          flightID: parseInt(crewAssignmentForm.flightId),
+          crewID: parseInt(crewId),
+          assignmentDate: new Date().toISOString(),
+          assignedBy: "admin", // Or current user info
+          status: "assigned",
+        })
+      );
 
-      setCrewAssignments([...crewAssignments, newAssignment]);
+      // Call backend for each assignment
+      const savedAssignments = await Promise.all(
+        assignmentsToSave.map((a) => crewAssignmentAPI.createAssignment(a))
+      );
+
+      // Update local state with what backend returned
+      setCrewAssignments((prev) => [...prev, ...savedAssignments]);
+
       showAlert("Crew assigned to flight successfully");
       setShowCrewAssignmentModal(false);
       resetCrewAssignmentForm();
     } catch (error) {
       console.error("Failed to assign crew:", error);
-      showAlert(error.message || "Failed to assign crew", "error");
+      showAlert(error?.message || "Failed to assign crew", "error");
     } finally {
       setLoading(false);
     }
@@ -696,18 +701,22 @@ const AdminDashboard = () => {
 
     setLoading(true);
     try {
+      await crewAssignmentAPI.deleteAssignment(assignmentId);
+
       setCrewAssignments(
-        crewAssignments.filter((assignment) => assignment.id !== assignmentId)
+        crewAssignments.filter(
+          (assignment) => assignment.assignmentID !== assignmentId
+        )
       );
+
       showAlert("Crew assignment removed successfully");
     } catch (error) {
       console.error("Failed to remove crew assignment:", error);
-      showAlert("Failed to remove crew assignment", "error");
+      showAlert(error?.message || "Failed to remove crew assignment", "error");
     } finally {
       setLoading(false);
     }
   };
-
   const resetCrewAssignmentForm = () => {
     setCrewAssignmentForm({
       flightId: "",
