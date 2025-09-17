@@ -92,4 +92,18 @@ public class CrewAssignmentService {
         }
         return crewService.findAll();
     }
+
+    public List<CrewAssignmentResponse> getFlightAssignments(Long flightId) {
+        List<CrewAssignment> assignments = crewAssignmentRepository.findByFlightId(flightId);
+        return assignments.stream()
+                .map(CrewAssignmentResponse::new)
+                .collect(Collectors.toList());
+    }
+
+    public List<CrewAssignmentResponse> getAllAssignments() {
+        List<CrewAssignment> assignments = crewAssignmentRepository.findAll();
+        return assignments.stream()
+                .map(CrewAssignmentResponse::new)
+                .collect(Collectors.toList());
+    }
 }

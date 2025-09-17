@@ -38,8 +38,9 @@ public class AdminController {
     @Autowired
     private ReportService reportService;
 
-    // Move more specific endpoints before the generic {id} endpoint to avoid conflicts
-    
+    // Move more specific endpoints before the generic {id} endpoint to avoid
+    // conflicts
+
     // Reports endpoints - moved to top to avoid path conflicts
     @GetMapping("/reports/demand")
     // @PreAuthorize("hasRole('ADMIN')")
@@ -254,6 +255,31 @@ public class AdminController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Error assigning crew: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/crew-assignments")
+    // @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> getCrewAssignments(@RequestParam(required = false) Long flightId,
+            @RequestParam(required = false) Long crewId,
+            @RequestParam(required = false) Long adminId) {
+        try {
+            List<CrewAssignmentResponse> assignments;
+
+            if (flightId != null) {
+                assignments = crewAssignmentService.getFlightAssignments(flightId);
+            } else if (crewId != null) {
+                assignments = crewAssignmentService.getCrewAssignments(crewId);
+            } else if (adminId != null) {
+                assignments = crewAssignmentService.getAdminAssignments(adminId);
+            } else {
+                assignments = crewAssignmentService.getAllAssignments();
+            }
+
+            return ResponseEntity.ok(assignments);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error retrieving crew assignments: " + e.getMessage());
         }
     }
 }

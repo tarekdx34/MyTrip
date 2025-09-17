@@ -1,5 +1,6 @@
 package com.mytrip.airline.service;
 
+import com.mytrip.airline.dto.CrewAssignmentResponse;
 import com.mytrip.airline.entity.Admin;
 import com.mytrip.airline.entity.User;
 import com.mytrip.airline.repository.AdminRepository;
@@ -27,7 +28,7 @@ public class AdminService {
     }
 
     public Optional<Admin> findByUserId(Long userId) {
-        return adminRepository.findByUserUserID(userId);  // Updated to match entity field name
+        return adminRepository.findByUserUserID(userId); // Updated to match entity field name
     }
 
     public Optional<Admin> findByEmployeeNumber(String employeeNumber) {
@@ -61,10 +62,10 @@ public class AdminService {
         if (currentUser == null) {
             return false;
         }
-        
+
         Optional<Admin> admin = findById(adminId);
-        return admin.isPresent() && 
-               admin.get().getUser().getUserID().equals(currentUser.getUserID());
+        return admin.isPresent() &&
+                admin.get().getUser().getUserID().equals(currentUser.getUserID());
     }
 
     public boolean hasAccessLevel(Long adminId, String requiredAccessLevel) {
@@ -72,7 +73,7 @@ public class AdminService {
         if (admin.isEmpty()) {
             return false;
         }
-        
+
         try {
             int currentLevel = Integer.parseInt(admin.get().getAccessLevel());
             int requiredLevel = Integer.parseInt(requiredAccessLevel);
@@ -160,9 +161,11 @@ public class AdminService {
         return "Flight details - implement with ReportService";
     }
 
-    public List<Object> getAdminAssignments(Long adminId) {
-        // This will be implemented when CrewAssignmentService is available
-        return List.of("Admin assignments - implement with CrewAssignmentService");
+    @Autowired
+    private CrewAssignmentService crewAssignmentService;
+
+    public List<CrewAssignmentResponse> getAdminAssignments(Long adminId) {
+        return crewAssignmentService.getAdminAssignments(adminId);
     }
 
     // Validation methods
@@ -170,7 +173,7 @@ public class AdminService {
         if (accessLevel == null) {
             return false;
         }
-        
+
         try {
             int level = Integer.parseInt(accessLevel);
             return level >= 1 && level <= 5; // Access levels 1-5
@@ -180,9 +183,9 @@ public class AdminService {
     }
 
     public boolean isValidEmployeeNumber(String employeeNumber) {
-        return employeeNumber != null && 
-               employeeNumber.trim().length() >= 3 && 
-               employeeNumber.trim().length() <= 50;
+        return employeeNumber != null &&
+                employeeNumber.trim().length() >= 3 &&
+                employeeNumber.trim().length() <= 50;
     }
 
     // Search and filter methods
