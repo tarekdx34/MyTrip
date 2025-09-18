@@ -1,9 +1,11 @@
 package com.mytrip.airline.controller;
 
 import com.mytrip.airline.entity.Admin;
+import com.mytrip.airline.entity.Crew;
 import com.mytrip.airline.service.AdminService;
 import com.mytrip.airline.service.FlightService;
 import com.mytrip.airline.service.CrewAssignmentService;
+import com.mytrip.airline.service.CrewService;
 import com.mytrip.airline.service.ReportService;
 import com.mytrip.airline.dto.CrewAssignmentResponse;
 import com.mytrip.airline.dto.FlightRequest;
@@ -37,6 +39,8 @@ public class AdminController {
 
     @Autowired
     private ReportService reportService;
+    @Autowired
+    private CrewService crewService;
 
     // Move more specific endpoints before the generic {id} endpoint to avoid
     // conflicts
@@ -282,4 +286,54 @@ public class AdminController {
                     .body("Error retrieving crew assignments: " + e.getMessage());
         }
     }
+
+    @PutMapping("/crew-assignments/{assignmentId}")
+    // @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> updateCrewAssignment(@PathVariable Long assignmentId, @RequestBody Object assignmentData) {
+        try {
+            CrewAssignmentResponse assignment = crewAssignmentService.updateAssignment(assignmentId, assignmentData);
+            return ResponseEntity.ok(assignment);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error updating crew assignment: " + e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/crew-assignments/{assignmentId}")
+    // @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> deleteCrewAssignment(@PathVariable Long assignmentId) {
+        try {
+            crewAssignmentService.deleteAssignment(assignmentId);
+            return ResponseEntity.ok("Crew assignment deleted successfully");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error deleting crew assignment: " + e.getMessage());
+        }
+    }
+
+    // Crew management endpoints
+    @PutMapping("/crew/{crewId}")
+    // @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> updateCrew(@PathVariable Long crewId, @RequestBody Crew updatedCrew) {
+        try {
+            Crew crew = crewService.updateCrewByAdmin(crewId, updatedCrew);
+            return ResponseEntity.ok(crew);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error updating crew member: " + e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/crew/{crewId}")
+    // @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> deleteCrew(@PathVariable Long crewId) {
+        try {
+            crewService.deleteCrewByAdmin(crewId);
+            return ResponseEntity.ok("Crew member deleted successfully");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error deleting crew member: " + e.getMessage());
+        }
+    }
+
 }

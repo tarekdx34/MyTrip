@@ -65,6 +65,37 @@ public class CrewService {
         return crewRepository.save(crew);
     }
 
+    public Crew updateCrewByAdmin(Long crewId, Crew updatedCrew) {
+        Optional<Crew> existingCrew = findById(crewId);
+        if (existingCrew.isEmpty()) {
+            throw new IllegalArgumentException("Crew member not found with ID: " + crewId);
+        }
+
+        Crew crew = existingCrew.get();
+
+        if (updatedCrew.getEmployeeNumber() != null) {
+            crew.setEmployeeNumber(updatedCrew.getEmployeeNumber());
+        }
+
+        if (updatedCrew.getPosition() != null) {
+            crew.setPosition(updatedCrew.getPosition());
+        }
+
+        if (updatedCrew.getLicenseNumber() != null) {
+            crew.setLicenseNumber(updatedCrew.getLicenseNumber());
+        }
+
+        return crewRepository.save(crew);
+    }
+
+    @Transactional
+    public void deleteCrewByAdmin(Long crewId) {
+        if (!crewRepository.existsById(crewId)) {
+            throw new IllegalArgumentException("Crew member not found with ID: " + crewId);
+        }
+        crewRepository.deleteById(crewId);
+    }
+
     @Transactional
     public void deleteCrew(Long id) {
         crewRepository.deleteById(id);

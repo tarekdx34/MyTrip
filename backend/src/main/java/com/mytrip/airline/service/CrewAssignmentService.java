@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.mytrip.airline.entity.Crew;
+import java.util.Optional;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -105,5 +106,48 @@ public class CrewAssignmentService {
         return assignments.stream()
                 .map(CrewAssignmentResponse::new)
                 .collect(Collectors.toList());
+    }
+
+    public CrewAssignmentResponse updateAssignment(Long assignmentId, Object assignmentData) {
+        try {
+            Optional<CrewAssignment> existingAssignment = crewAssignmentRepository.findById(assignmentId);
+            if (existingAssignment.isEmpty()) {
+                throw new IllegalArgumentException("Assignment not found with ID: " + assignmentId);
+            }
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = (Map<String, Object>) assignmentData;
+
+            CrewAssignment assignment = existingAssignment.get();
+
+            if (data.containsKey("status")) {
+                String status = data.get("status").toString();
+                assignment.setStatus(CrewAssignment.AssignmentStatus.valueOf(status));
+            }
+
+            if (data.containsKey("flightId")) {
+                Long flightId = Long.valueOf(data.get("flightId").toString());
+                assignment.setFlightId(flightId);
+            }
+
+            if (data.containsKey("crewId")) {
+                Long crewId = Long.valueOf(data.get("crewId").toString());
+                assignment.setCrewId(crewId);
+            }
+
+            CrewAssignment savedAssignment = crewAssignmentRepository.save(assignment);
+            return new CrewAssignmentResponse(savedAssignment);
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to update assignment: " + e.getMessage(), e);
+        }
+    }
+
+    @Transactional
+    public void deleteAssignment(Long assignmentId) {
+        if (!crewAssignmentRepository.existsById(assignmentId)) {
+            throw new IllegalArgumentException("Assignment not found with ID: " + assignmentId);
+        }
+        crewAssignmentRepository.deleteById(assignmentId);
     }
 }
