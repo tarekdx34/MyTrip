@@ -317,6 +317,8 @@ export const flightAPI = {
     flightId: number,
     flightData: Partial<Flight>
   ): Promise<Flight> {
+    console.log("Updating flight with data:", flightData);
+
     const response = await fetch(`${API_BASE_URL}/flights/${flightId}`, {
       method: "PUT",
       headers: {
@@ -324,7 +326,20 @@ export const flightAPI = {
       },
       body: JSON.stringify(flightData),
     });
-    if (!response.ok) throw new Error("Failed to update flight");
+
+    console.log("Update response status:", response.status);
+
+    if (!response.ok) {
+      let errorMessage = "Failed to update flight";
+      try {
+        const errorData = await response.json();
+        console.log("Error response data:", errorData);
+        errorMessage = errorData.message || errorData.error || errorMessage;
+      } catch (e) {
+        console.log("Could not parse error response as JSON");
+      }
+      throw new Error(`${errorMessage} (Status: ${response.status})`);
+    }
     return await response.json();
   },
 
@@ -925,6 +940,7 @@ export interface CrewAssignment {
 }
 
 // Updated Crew Assignment API
+// Updated Crew Assignment API
 export const crewAssignmentAPI = {
   async getAllAssignments(): Promise<CrewAssignment[]> {
     const response = await fetch(`${API_BASE_URL}/admin/crew-assignments`);
@@ -991,6 +1007,16 @@ export const crewAssignmentAPI = {
     assignmentId: number,
     assignmentData: Partial<CrewAssignment>
   ): Promise<CrewAssignment> {
+    // Transform frontend field names to backend field names if needed
+    const backendData = {
+      ...assignmentData,
+    };
+
+    // Remove frontend-specific fields that backend doesn't expect
+    delete backendData.flightID;
+    delete backendData.crewID;
+    delete backendData.assignmentID;
+
     const response = await fetch(
       `${API_BASE_URL}/admin/crew-assignments/${assignmentId}`,
       {
@@ -998,11 +1024,12 @@ export const crewAssignmentAPI = {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(assignmentData),
+        body: JSON.stringify(backendData),
       }
     );
+
     if (!response.ok) {
-      const errorData = await response.json();
+      const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || "Failed to update crew assignment");
     }
     return await response.json();
@@ -1013,7 +1040,7 @@ export const crewAssignmentAPI = {
     status: "assigned" | "completed" | "cancelled"
   ): Promise<CrewAssignment> {
     const response = await fetch(
-      `${API_BASE_URL}/admin/crew-assignments/${assignmentId}/status`,
+      `${API_BASE_URL}/admin/crew-assignments/${assignmentId}`,
       {
         method: "PUT",
         headers: {
@@ -1022,8 +1049,9 @@ export const crewAssignmentAPI = {
         body: JSON.stringify({ status }),
       }
     );
+
     if (!response.ok) {
-      const errorData = await response.json();
+      const errorData = await response.json().catch(() => ({}));
       throw new Error(
         errorData.message || "Failed to update assignment status"
       );
@@ -1038,10 +1066,12 @@ export const crewAssignmentAPI = {
         method: "DELETE",
       }
     );
+
     if (!response.ok) {
-      const errorData = await response.json();
+      const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || "Failed to delete crew assignment");
     }
+    // No need to return anything for successful deletion
   },
 
   async completeAssignment(assignmentId: number): Promise<CrewAssignment> {

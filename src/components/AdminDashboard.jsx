@@ -45,6 +45,7 @@ import {
   Building,
   CreditCard,
 } from "lucide-react";
+import FlightSearch from "./FlightSearch"; // adjust path as needed
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -61,6 +62,7 @@ const AdminDashboard = () => {
   const [crewAssignments, setCrewAssignments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState(null);
+  const [filteredFlights, setFilteredFlights] = useState([]);
 
   // Modal states
   const [showAddFlightModal, setShowAddFlightModal] = useState(false);
@@ -90,7 +92,7 @@ const AdminDashboard = () => {
     duration: "",
     price: "",
     availableSeats: "",
-    status: "Scheduled",
+    status: "scheduled",
   });
 
   const [userForm, setUserForm] = useState({
@@ -172,6 +174,13 @@ const AdminDashboard = () => {
       setLoading(false);
     }
   };
+  console.log(
+    "Flight statuses:",
+    flights.map((f) => ({
+      flightNumber: f.flightNumber,
+      status: f.status,
+    }))
+  );
   const showAlert = (message, type = "success") => {
     setAlert({ message, type });
     setTimeout(() => setAlert(null), 5000);
@@ -246,7 +255,6 @@ const AdminDashboard = () => {
 
   const handleUpdateFlight = async () => {
     if (!selectedFlight) return;
-
     setLoading(true);
     try {
       const updatedFlight = {
@@ -256,7 +264,10 @@ const AdminDashboard = () => {
         duration: parseInt(flightForm.duration),
         price: parseFloat(flightForm.price),
         availableSeats: parseInt(flightForm.availableSeats),
-        status: flightForm.status,
+        status: flightForm.status, // Don't convert to uppercase
+        aircraftID: selectedFlight.aircraft?.aircraftID,
+        departureAirportID: selectedFlight.departureAirport?.airportID,
+        arrivalAirportID: selectedFlight.arrivalAirport?.airportID,
       };
 
       await flightAPI.updateFlight(selectedFlight.flightID, updatedFlight);
@@ -319,7 +330,7 @@ const AdminDashboard = () => {
       duration: flight.duration || "",
       price: flight.price || "",
       availableSeats: flight.availableSeats || "",
-      status: flight.status || "Scheduled",
+      status: flight.status?.toUpperCase() || "SCHEDULED",
     });
     setShowEditFlightModal(true);
   };
@@ -335,7 +346,7 @@ const AdminDashboard = () => {
       duration: "",
       price: "",
       availableSeats: "",
-      status: "Scheduled",
+      status: "scheduled",
     });
   };
 
@@ -647,58 +658,75 @@ const AdminDashboard = () => {
   };
 
   // Crew Assignment Management
+
+  // 1. Fetch crew data with user information when opening assignment modal
+
+  // Get crew data for display in assignment modal
+  const getAvailableCrewForAssignment = () => {
+    // Use the nested user data structure from the crew API response
+    return crew
+      .map((crewMember) => {
+        // The user data is nested within the crew record
+        const userData = crewMember.user;
+
+        return {
+          crewID: crewMember.crewID, // This is what we'll send to API
+          userID: userData?.userID || crewMember.userID,
+          position: crewMember.position,
+          employeeNumber: crewMember.employeeNumber,
+          licenseNumber: crewMember.licenseNumber,
+          // User data for display (from nested user object)
+          name: userData?.name || `Crew Member ${crewMember.crewID}`,
+          email: userData?.email || "Email not available",
+          hasValidUserData: !!userData,
+        };
+      })
+      .filter((crew) => crew.hasValidUserData); // Only show crew with valid user data
+  };
+
   const handleAssignCrew = async () => {
     setLoading(true);
     try {
-      const currentAdminId = localStorage.getItem("userId");
-
+      const currentUserId = localStorage.getItem("userId");
       let assignedByAdminId = null;
-      try {
-        const currentAdmin = await adminAPI.getAdminByUserId(
-          parseInt(currentAdminId)
-        );
-        assignedByAdminId = currentAdmin.adminID;
-      } catch (error) {
-        console.warn(
-          "Could not find admin record, proceeding without assignedBy"
-        );
+
+      // Get admin ID if available
+      if (currentUserId) {
+        try {
+          const currentAdmin = await adminAPI.getAdminByUserId(
+            parseInt(currentUserId)
+          );
+          assignedByAdminId = currentAdmin.adminID;
+        } catch (error) {
+          console.warn("Could not find admin record");
+        }
       }
 
-      // Create assignments using crewID directly
+      // Create assignments using crewID and flightID
       const assignmentPromises = crewAssignmentForm.crewMembers.map(
         async (crewId) => {
           const assignmentData = {
-            flightID: parseInt(crewAssignmentForm.flightId),
-            crewID: parseInt(crewId), // Use crewID directly
+            flightID: parseInt(crewAssignmentForm.flightId), // From flight table
+            crewID: parseInt(crewId), // From crew table - this is what API expects
             assignmentDate: new Date().toISOString(),
             assignedBy: assignedByAdminId,
             status: "assigned",
           };
 
-          console.log("Creating assignment:", assignmentData);
           return await crewAssignmentAPI.createAssignment(assignmentData);
         }
       );
 
       const savedAssignments = await Promise.all(assignmentPromises);
-      console.log("Saved assignments:", savedAssignments);
 
-      // Update local state immediately
-      setCrewAssignments((prev) => {
-        const newAssignments = [...prev, ...savedAssignments];
-        console.log("Updated crew assignments state:", newAssignments);
-        return newAssignments;
-      });
+      // Update local state with new assignments
+      setCrewAssignments((prev) => [...prev, ...savedAssignments]);
 
       showAlert(
         `Successfully assigned ${savedAssignments.length} crew member(s) to flight`
       );
-
       setShowCrewAssignmentModal(false);
       resetCrewAssignmentForm();
-
-      // Force a complete data reload to ensure consistency
-      await loadAllData();
     } catch (error) {
       console.error("Failed to assign crew:", error);
       showAlert(error?.message || "Failed to assign crew", "error");
@@ -708,27 +736,28 @@ const AdminDashboard = () => {
   };
 
   const handleRemoveCrewAssignment = async (assignmentId) => {
+    if (!assignmentId) {
+      showAlert("Invalid assignment ID", "error");
+      return;
+    }
+
     if (!confirm("Are you sure you want to remove this crew assignment?"))
       return;
 
     setLoading(true);
     try {
-      console.log("Removing assignment:", assignmentId);
       await crewAssignmentAPI.deleteAssignment(assignmentId);
 
-      // Update local state immediately
-      setCrewAssignments((prev) => {
-        const updated = prev.filter(
-          (assignment) => assignment.assignmentID !== assignmentId
-        );
-        console.log("Updated assignments after removal:", updated);
-        return updated;
-      });
+      // Remove from local state - check for both field name formats
+      setCrewAssignments((prev) =>
+        prev.filter((assignment) => {
+          const currentAssignmentId =
+            assignment.assignmentId || assignment.assignmentID;
+          return currentAssignmentId !== assignmentId;
+        })
+      );
 
       showAlert("Crew assignment removed successfully");
-
-      // Optional: Force reload to ensure consistency
-      await loadAllData();
     } catch (error) {
       console.error("Failed to remove crew assignment:", error);
       showAlert(error?.message || "Failed to remove crew assignment", "error");
@@ -737,19 +766,29 @@ const AdminDashboard = () => {
     }
   };
   const handleCompleteAssignment = async (assignmentId) => {
+    // Make sure we have a valid assignment ID
+    if (!assignmentId) {
+      console.error("No assignment ID provided!");
+      showAlert("Invalid assignment ID", "error");
+      return;
+    }
+
     setLoading(true);
     try {
-      const updatedAssignment = await crewAssignmentAPI.completeAssignment(
-        assignmentId
-      );
+      const response = await crewAssignmentAPI.updateAssignment(assignmentId, {
+        status: "completed",
+      });
 
-      // Update local state
+      // Update local state - check for both field name formats
       setCrewAssignments((prev) =>
-        prev.map((assignment) =>
-          assignment.assignmentID === assignmentId
-            ? { ...assignment, status: "completed" }
-            : assignment
-        )
+        prev.map((assignment) => {
+          const currentAssignmentId =
+            assignment.assignmentId || assignment.assignmentID;
+          if (currentAssignmentId === assignmentId) {
+            return { ...assignment, status: "completed" };
+          }
+          return assignment;
+        })
       );
 
       showAlert("Assignment marked as completed");
@@ -761,21 +800,30 @@ const AdminDashboard = () => {
     }
   };
   const handleCancelAssignment = async (assignmentId) => {
+    if (!assignmentId) {
+      console.error("No assignment ID provided!");
+      showAlert("Invalid assignment ID", "error");
+      return;
+    }
+
     if (!confirm("Are you sure you want to cancel this assignment?")) return;
 
     setLoading(true);
     try {
-      const updatedAssignment = await crewAssignmentAPI.cancelAssignment(
-        assignmentId
-      );
+      await crewAssignmentAPI.updateAssignment(assignmentId, {
+        status: "cancelled",
+      });
 
-      // Update local state
+      // Update local state - check for both field name formats
       setCrewAssignments((prev) =>
-        prev.map((assignment) =>
-          assignment.assignmentID === assignmentId
-            ? { ...assignment, status: "cancelled" }
-            : assignment
-        )
+        prev.map((assignment) => {
+          const currentAssignmentId =
+            assignment.assignmentId || assignment.assignmentID;
+          if (currentAssignmentId === assignmentId) {
+            return { ...assignment, status: "cancelled" };
+          }
+          return assignment;
+        })
       );
 
       showAlert("Assignment cancelled");
@@ -787,70 +835,33 @@ const AdminDashboard = () => {
     }
   };
   const getCrewAssignmentsForFlight = (flightId) => {
-    return crewAssignments.filter(
-      (assignment) =>
-        assignment.flightID === flightId && assignment.status !== "cancelled"
-    );
-  };
-  const getFlightForAssignment = (flightID) => {
-    const flight = flights.find((f) => f.flightID === flightID);
-    console.log(`Getting flight for assignment - flightID: ${flightID}`, {
-      flight,
-      allFlights: flights.length,
-    });
-    return flight;
-  };
-  useEffect(() => {
-    // Load all data when component mounts
-    loadAllData();
-  }, []);
-  useEffect(() => {
-    console.log(
-      "Crew assignments state updated:",
-      crewAssignments.length,
-      "assignments"
-    );
-    if (crewAssignments.length > 0) {
-      debugCrewAssignments();
-    }
-  }, [crewAssignments, crew, users, flights]);
-  const debugCrewAssignments = () => {
-    console.log("=== Crew Assignments Debug ===");
-    console.log("Total assignments:", crewAssignments.length);
-    console.log("Total crew members:", crew.length);
-    console.log("Total users:", users.length);
-    console.log("Total flights:", flights.length);
+    return crewAssignments
+      .filter(
+        (assignment) =>
+          assignment.flightID === flightId && assignment.status !== "cancelled"
+      )
+      .map((assignment) => {
+        const crewMember = crew.find((c) => c.crewID === assignment.crewID);
+        // Use nested user data from crew record
+        const userData = crewMember?.user;
 
-    console.log("Crew assignments:", crewAssignments);
-
-    // Check for missing data
-    crewAssignments.forEach((assignment, index) => {
-      const flight = getFlightForAssignment(assignment.flightID);
-      const crewData = getCrewForAssignment(assignment.crewID);
-
-      console.log(`Assignment ${index + 1}:`, {
-        assignmentID: assignment.assignmentID,
-        flightID: assignment.flightID,
-        crewID: assignment.crewID,
-        flightFound: !!flight,
-        crewFound: !!crewData.crewRecord,
-        userFound: !!crewData.user,
-        status: assignment.status,
+        return {
+          assignmentID: assignment.assignmentID,
+          crewID: assignment.crewID,
+          name: userData?.name || "Unknown",
+          position: crewMember?.position || "crew",
+          status: assignment.status,
+        };
       });
-    });
-    console.log("=== End Debug ===");
   };
+
+  // Check if crew is already assigned to flight (prevent duplicates)
+
   // Helper function to get crew data for assignment
   const getCrewForAssignment = (crewID) => {
     const crewRecord = crew.find((c) => c.crewID === crewID);
-    const user = users.find((u) => u.userID === crewRecord?.userID);
-
-    console.log(`Getting crew for assignment - crewID: ${crewID}`, {
-      crewRecord,
-      user,
-      allCrew: crew.length,
-      allUsers: users.length,
-    });
+    // Use the nested user data from the crew record
+    const user = crewRecord?.user;
 
     return {
       crewRecord,
@@ -859,32 +870,27 @@ const AdminDashboard = () => {
       position: crewRecord?.position || "crew",
       email: user?.email || "No email",
       employeeNumber: crewRecord?.employeeNumber || null,
+      licenseNumber: crewRecord?.licenseNumber || null,
     };
   };
   const getFilteredAssignments = () => {
-    return crewAssignments.filter((assignment) => {
-      const flight = getFlightForAssignment(assignment.flightID);
-      const crewData = getCrewForAssignment(assignment.crewID);
+    const displayData = getCrewAssignmentDisplayData();
 
+    return displayData.filter((item) => {
       const matchesSearch =
         !searchTerm ||
-        flight?.flightNumber
-          ?.toLowerCase()
+        item.flight.flightNumber
+          .toLowerCase()
           .includes(searchTerm.toLowerCase()) ||
-        crewData.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        assignment.assignmentID?.toString().includes(searchTerm);
+        item.crew.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.assignmentID.toString().includes(searchTerm);
 
-      const matchesStatus = !statusFilter || assignment.status === statusFilter;
+      const matchesStatus = !statusFilter || item.status === statusFilter;
 
       return matchesSearch && matchesStatus;
     });
   };
-  const getFlightAssignmentsForCrew = (crewId) => {
-    return crewAssignments.filter(
-      (assignment) =>
-        assignment.crewID === crewId && assignment.status !== "cancelled"
-    );
-  };
+
   const isCrewAssignedToFlight = (crewId, flightId) => {
     return crewAssignments.some(
       (assignment) =>
@@ -915,7 +921,7 @@ const AdminDashboard = () => {
 
     if (duplicates.length > 0) {
       showAlert(
-        "Some crew members are already assigned to this flight",
+        "Some selected crew members are already assigned to this flight",
         "error"
       );
       return false;
@@ -929,7 +935,6 @@ const AdminDashboard = () => {
     if (!validateCrewAssignment()) {
       return;
     }
-
     await handleAssignCrew();
   };
   const getCrewWithUserData = () => {
@@ -946,56 +951,23 @@ const AdminDashboard = () => {
   };
 
   // Search and filter functions
-  const filterFlights = () => {
-    return flights.filter((flight) => {
-      const matchesSearch =
-        !searchTerm ||
-        flight.flightNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        flight.departureAirport?.name
-          ?.toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        flight.arrivalAirport?.name
-          ?.toLowerCase()
-          .includes(searchTerm.toLowerCase());
-
-      const matchesStatus = !statusFilter || flight.status === statusFilter;
-
-      return matchesSearch && matchesStatus;
-    });
-  };
-  const getCrewUsers = () => {
-    const crewUsers = users.filter((user) => user.userType === "crew");
-    return crewUsers
-      .map((user) => {
-        const crewDetails = crew.find((c) => c.userID === user.userID);
-        return {
-          ...user,
-          crewDetails: crewDetails || null,
-          crewID: crewDetails?.crewID || null,
-          position: crewDetails?.position || "crew",
-          employeeNumber: crewDetails?.employeeNumber || null,
-          licenseNumber: crewDetails?.licenseNumber || null,
-        };
-      })
-      .filter((user) => user.crewID !== null); // Only return users with valid crew records
-  };
 
   // Updated crew assignment form state - use userID instead of crewID
   const [crewAssignmentForm, setCrewAssignmentForm] = useState({
     flightId: "",
-    crewMembers: [], // Will store userIDs of crew members
+    crewMembers: [], // Store crewIDs, not userIDs
   });
-
   const resetCrewAssignmentForm = () => {
     setCrewAssignmentForm({
       flightId: "",
       crewMembers: [],
     });
   };
-
   const handleCrewMemberToggle = (crewId) => {
     const crewIdStr = crewId.toString();
+
     if (crewAssignmentForm.crewMembers.includes(crewIdStr)) {
+      // Remove from selection
       setCrewAssignmentForm({
         ...crewAssignmentForm,
         crewMembers: crewAssignmentForm.crewMembers.filter(
@@ -1003,32 +975,81 @@ const AdminDashboard = () => {
         ),
       });
     } else {
+      // Add to selection
       setCrewAssignmentForm({
         ...crewAssignmentForm,
         crewMembers: [...crewAssignmentForm.crewMembers, crewIdStr],
       });
     }
   };
-  const getCrewUsersWithStatus = () => {
-    const crewUsers = users.filter((user) => user.userType === "crew");
-    return crewUsers.map((user) => {
-      const crewDetails = crew.find((c) => c.userID === user.userID);
-      return {
-        ...user,
-        crewDetails: crewDetails || null,
-        crewID: crewDetails?.crewID || null,
-        position: crewDetails?.position || "crew",
-        employeeNumber: crewDetails?.employeeNumber || null,
-        licenseNumber: crewDetails?.licenseNumber || null,
-        hasCrewRecord: !!crewDetails,
+  const getCrewAssignmentDisplayData = () => {
+    return crewAssignments.map((assignment) => {
+      // FIXED: Your backend returns lowercase field names, so check for those first
+      const assignmentId =
+        assignment.assignmentId ||
+        assignment.assignmentID ||
+        assignment.id ||
+        assignment.assignment_id;
+      const flightId =
+        assignment.flightId || assignment.flightID || assignment.flight_id;
+      const crewId =
+        assignment.crewId || assignment.crewID || assignment.crew_id;
+      const assignmentDate =
+        assignment.assignmentDate ||
+        assignment.assignment_date ||
+        assignment.createdAt;
+      const status = assignment.status;
+
+      // Get flight data
+      const flight = flights.find(
+        (f) =>
+          f.flightID === flightId ||
+          f.flight_id === flightId ||
+          f.id === flightId
+      );
+
+      // Get crew data by crewID
+      const crewMember = crew.find(
+        (c) => c.crewID === crewId || c.crew_id === crewId || c.id === crewId
+      );
+
+      // Use the nested user data from crew record
+      const userData = crewMember?.user;
+
+      const result = {
+        assignmentID: assignmentId, // IMPORTANT: Store as assignmentID for frontend consistency
+        assignmentDate: assignmentDate,
+        status: status,
+        // Flight information
+        flight: {
+          flightID: flightId,
+          flightNumber: flight?.flightNumber || `Flight ${flightId}`,
+          departureTime: flight?.departureTime,
+          arrivalTime: flight?.arrivalTime,
+          departureAirport:
+            flight?.departureAirport?.name ||
+            flight?.departureAirport?.airportCode ||
+            "Unknown",
+          arrivalAirport:
+            flight?.arrivalAirport?.name ||
+            flight?.arrivalAirport?.airportCode ||
+            "Unknown",
+        },
+        // Crew information
+        crew: {
+          crewID: crewId,
+          name: userData?.name || `Crew ${crewId}`,
+          email: userData?.email || "No email",
+          position: crewMember?.position || "crew",
+          employeeNumber: crewMember?.employeeNumber,
+          licenseNumber: crewMember?.licenseNumber,
+        },
       };
+
+      return result;
     });
   };
-  useEffect(() => {
-    console.log("Loaded users:", users);
-    console.log("Loaded crew:", crew);
-    console.log("Crew with user data:", getCrewWithUserData());
-  }, [users, crew]);
+
   const filterUsers = () => {
     return users.filter((user) => {
       const matchesSearch =
@@ -1369,40 +1390,14 @@ const AdminDashboard = () => {
               </div>
 
               {/* Search and Filter */}
-              <div className="bg-white p-4 rounded-lg shadow mb-6">
-                <div className="flex space-x-4">
-                  <div className="flex-1">
-                    <input
-                      type="text"
-                      placeholder="Search flights..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">All Statuses</option>
-                    <option value="Scheduled">Scheduled</option>
-                    <option value="In-Flight">In-Flight</option>
-                    <option value="Completed">Completed</option>
-                    <option value="Cancelled">Cancelled</option>
-                    <option value="Delayed">Delayed</option>
-                  </select>
-                  <button
-                    onClick={() => {
-                      setSearchTerm("");
-                      setStatusFilter("");
-                    }}
-                    className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    Clear
-                  </button>
-                </div>
-              </div>
+              <FlightSearch
+                flights={flights}
+                onFilterChange={setFilteredFlights}
+                searchTerm={searchTerm}
+                setSearchTerm={setSearchTerm}
+                statusFilter={statusFilter}
+                setStatusFilter={setStatusFilter}
+              />
 
               {/* Flights Table */}
               <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -1433,7 +1428,7 @@ const AdminDashboard = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {filterFlights().map((flight) => (
+                    {filteredFlights.map((flight) => (
                       <tr key={flight.flightID}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                           {flight.flightNumber}
@@ -1452,18 +1447,21 @@ const AdminDashboard = () => {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span
                             className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              flight.status === "Scheduled"
+                              flight.status === "scheduled"
                                 ? "bg-blue-100 text-blue-800"
-                                : flight.status === "In-Flight"
+                                : flight.status === "boarding"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : flight.status === "departed"
                                 ? "bg-green-100 text-green-800"
-                                : flight.status === "Completed"
+                                : flight.status === "arrived"
                                 ? "bg-gray-100 text-gray-800"
-                                : flight.status === "Cancelled"
+                                : flight.status === "cancelled"
                                 ? "bg-red-100 text-red-800"
                                 : "bg-yellow-100 text-yellow-800"
                             }`}
                           >
-                            {flight.status}
+                            {flight.status.charAt(0).toUpperCase() +
+                              flight.status.slice(1)}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -1991,9 +1989,6 @@ const AdminDashboard = () => {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Assignment ID
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Flight
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -2017,157 +2012,121 @@ const AdminDashboard = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {crewAssignments
-                      .filter((assignment) => {
-                        const flight = getFlightForAssignment(
-                          assignment.flightID
-                        );
-                        const crewData = getCrewForAssignment(
-                          assignment.crewID
-                        );
-
-                        const matchesSearch =
-                          !searchTerm ||
-                          flight?.flightNumber
-                            ?.toLowerCase()
-                            .includes(searchTerm.toLowerCase()) ||
-                          crewData.name
-                            ?.toLowerCase()
-                            .includes(searchTerm.toLowerCase()) ||
-                          assignment.assignmentID
-                            ?.toString()
-                            .includes(searchTerm);
-
-                        const matchesStatus =
-                          !statusFilter || assignment.status === statusFilter;
-
-                        return matchesSearch && matchesStatus;
-                      })
-                      .map((assignment) => {
-                        const flight = getFlightForAssignment(
-                          assignment.flightID
-                        );
-                        const crewData = getCrewForAssignment(
-                          assignment.crewID
-                        );
-
-                        return (
-                          <tr
-                            key={assignment.assignmentID}
-                            className="hover:bg-gray-50"
+                    {getFilteredAssignments().map((assignmentData) => (
+                      <tr
+                        key={assignmentData.assignmentID}
+                        className="hover:bg-gray-50"
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">
+                            {assignmentData.flight.flightNumber}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {assignmentData.flight.departureTime
+                              ? formatDateTime(
+                                  assignmentData.flight.departureTime
+                                )
+                              : ""}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {assignmentData.flight.departureAirport} →{" "}
+                          {assignmentData.flight.arrivalAirport}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">
+                            {assignmentData.crew.name}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {assignmentData.crew.employeeNumber
+                              ? `ID: ${assignmentData.crew.employeeNumber}`
+                              : "No Employee ID"}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span
+                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              assignmentData.crew.position === "pilot"
+                                ? "bg-blue-100 text-blue-800"
+                                : assignmentData.crew.position === "co_pilot"
+                                ? "bg-purple-100 text-purple-800"
+                                : assignmentData.crew.position ===
+                                  "flight_attendant"
+                                ? "bg-green-100 text-green-800"
+                                : assignmentData.crew.position === "cabin_crew"
+                                ? "bg-orange-100 text-orange-800"
+                                : "bg-gray-100 text-gray-800"
+                            }`}
                           >
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                              #{assignment.assignmentID}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm font-medium text-gray-900">
-                                {flight?.flightNumber || "N/A"}
-                              </div>
-                              <div className="text-sm text-gray-500">
-                                {flight
-                                  ? formatDateTime(flight.departureTime)
-                                  : ""}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {flight
-                                ? `${flight.departureAirport?.airportCode} → ${flight.arrivalAirport?.airportCode}`
-                                : "N/A"}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm font-medium text-gray-900">
-                                {crewData.name}
-                              </div>
-                              <div className="text-sm text-gray-500">
-                                {crewData.crewRecord?.employeeNumber
-                                  ? `ID: ${crewData.crewRecord.employeeNumber}`
-                                  : "No Employee ID"}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span
-                                className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                  crewData.position === "pilot"
-                                    ? "bg-blue-100 text-blue-800"
-                                    : crewData.position === "co_pilot"
-                                    ? "bg-purple-100 text-purple-800"
-                                    : crewData.position === "flight_attendant"
-                                    ? "bg-green-100 text-green-800"
-                                    : crewData.position === "cabin_crew"
-                                    ? "bg-orange-100 text-orange-800"
-                                    : "bg-gray-100 text-gray-800"
-                                }`}
-                              >
-                                {crewData.position
-                                  ? crewData.position
-                                      .replace("_", " ")
-                                      .replace(/\b\w/g, (l) => l.toUpperCase())
-                                  : "Crew"}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {formatDateTime(assignment.assignmentDate)}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span
-                                className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                  assignment.status === "assigned"
-                                    ? "bg-green-100 text-green-800"
-                                    : assignment.status === "completed"
-                                    ? "bg-blue-100 text-blue-800"
-                                    : assignment.status === "cancelled"
-                                    ? "bg-red-100 text-red-800"
-                                    : "bg-gray-100 text-gray-800"
-                                }`}
-                              >
-                                {assignment.status?.charAt(0).toUpperCase() +
-                                  assignment.status?.slice(1)}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                              <div className="flex items-center space-x-2">
-                                {assignment.status === "assigned" && (
-                                  <>
-                                    <button
-                                      onClick={() =>
-                                        handleCompleteAssignment(
-                                          assignment.assignmentID
-                                        )
-                                      }
-                                      className="text-green-600 hover:text-green-900"
-                                      title="Mark as completed"
-                                    >
-                                      <CheckCircle className="h-4 w-4" />
-                                    </button>
-                                    <button
-                                      onClick={() =>
-                                        handleCancelAssignment(
-                                          assignment.assignmentID
-                                        )
-                                      }
-                                      className="text-yellow-600 hover:text-yellow-900"
-                                      title="Cancel assignment"
-                                    >
-                                      <X className="h-4 w-4" />
-                                    </button>
-                                  </>
-                                )}
+                            {assignmentData.crew.position
+                              ? assignmentData.crew.position
+                                  .replace("_", " ")
+                                  .replace(/\b\w/g, (l) => l.toUpperCase())
+                              : "Crew"}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {formatDateTime(assignmentData.assignmentDate)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span
+                            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              assignmentData.status === "assigned"
+                                ? "bg-green-100 text-green-800"
+                                : assignmentData.status === "completed"
+                                ? "bg-blue-100 text-blue-800"
+                                : assignmentData.status === "cancelled"
+                                ? "bg-red-100 text-red-800"
+                                : "bg-gray-100 text-gray-800"
+                            }`}
+                          >
+                            {assignmentData.status?.charAt(0).toUpperCase() +
+                              assignmentData.status?.slice(1)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex items-center space-x-2">
+                            {assignmentData.status === "assigned" && (
+                              <>
                                 <button
                                   onClick={() =>
-                                    handleRemoveCrewAssignment(
-                                      assignment.assignmentID
+                                    handleCompleteAssignment(
+                                      assignmentData.assignmentID
                                     )
                                   }
-                                  className="text-red-600 hover:text-red-900"
-                                  title="Delete assignment"
+                                  className="text-green-600 hover:text-green-900"
+                                  title="Mark as completed"
                                 >
-                                  <Trash2 className="h-4 w-4" />
+                                  <CheckCircle className="h-4 w-4" />
                                 </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                                <button
+                                  onClick={() =>
+                                    handleCancelAssignment(
+                                      assignmentData.assignmentID
+                                    )
+                                  }
+                                  className="text-yellow-600 hover:text-yellow-900"
+                                  title="Cancel assignment"
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
+                              </>
+                            )}
+                            <button
+                              onClick={() =>
+                                handleRemoveCrewAssignment(
+                                  assignmentData.assignmentID
+                                )
+                              }
+                              className="text-red-600 hover:text-red-900"
+                              title="Delete assignment"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
                     {crewAssignments.length === 0 && (
                       <tr>
                         <td colSpan="8" className="px-6 py-12 text-center">
@@ -2191,31 +2150,7 @@ const AdminDashboard = () => {
                       </tr>
                     )}
                     {crewAssignments.length > 0 &&
-                      crewAssignments.filter((assignment) => {
-                        const flight = getFlightForAssignment(
-                          assignment.flightID
-                        );
-                        const crewData = getCrewForAssignment(
-                          assignment.crewID
-                        );
-
-                        const matchesSearch =
-                          !searchTerm ||
-                          flight?.flightNumber
-                            ?.toLowerCase()
-                            .includes(searchTerm.toLowerCase()) ||
-                          crewData.name
-                            ?.toLowerCase()
-                            .includes(searchTerm.toLowerCase()) ||
-                          assignment.assignmentID
-                            ?.toString()
-                            .includes(searchTerm);
-
-                        const matchesStatus =
-                          !statusFilter || assignment.status === statusFilter;
-
-                        return matchesSearch && matchesStatus;
-                      }).length === 0 && (
+                      getFilteredAssignments().length === 0 && (
                         <tr>
                           <td
                             colSpan="8"
@@ -2246,10 +2181,8 @@ const AdminDashboard = () => {
                       )
                     )
                     .map((flight) => {
-                      const flightAssignments = crewAssignments.filter(
-                        (assignment) =>
-                          assignment.flightID === flight.flightID &&
-                          assignment.status !== "cancelled"
+                      const flightAssignments = getCrewAssignmentsForFlight(
+                        flight.flightID
                       );
 
                       return (
@@ -2274,51 +2207,45 @@ const AdminDashboard = () => {
                             </span>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {flightAssignments.map((assignment) => {
-                              const crewData = getCrewForAssignment(
-                                assignment.crewID
-                              );
-                              return (
-                                <div
-                                  key={assignment.assignmentID}
-                                  className="bg-gray-50 rounded-lg p-3"
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <div>
-                                      <p className="font-medium text-sm text-gray-900">
-                                        {crewData.name}
-                                      </p>
-                                      <p className="text-xs text-gray-500">
-                                        {crewData.crewRecord?.employeeNumber &&
-                                          `ID: ${crewData.crewRecord.employeeNumber}`}
-                                      </p>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                      <span
-                                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                          crewData.position === "pilot"
-                                            ? "bg-blue-100 text-blue-800"
-                                            : crewData.position === "co_pilot"
-                                            ? "bg-purple-100 text-purple-800"
-                                            : crewData.position ===
-                                              "flight_attendant"
-                                            ? "bg-green-100 text-green-800"
-                                            : crewData.position === "cabin_crew"
-                                            ? "bg-orange-100 text-orange-800"
-                                            : "bg-gray-100 text-gray-800"
-                                        }`}
-                                      >
-                                        {crewData.position
-                                          ?.replace("_", " ")
-                                          .replace(/\b\w/g, (l) =>
-                                            l.toUpperCase()
-                                          ) || "Crew"}
-                                      </span>
-                                    </div>
+                            {flightAssignments.map((assignment) => (
+                              <div
+                                key={assignment.assignmentID}
+                                className="bg-gray-50 rounded-lg p-3"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <p className="font-medium text-sm text-gray-900">
+                                      {assignment.name}
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                      Crew ID: {assignment.crewID}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <span
+                                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                        assignment.position === "pilot"
+                                          ? "bg-blue-100 text-blue-800"
+                                          : assignment.position === "co_pilot"
+                                          ? "bg-purple-100 text-purple-800"
+                                          : assignment.position ===
+                                            "flight_attendant"
+                                          ? "bg-green-100 text-green-800"
+                                          : assignment.position === "cabin_crew"
+                                          ? "bg-orange-100 text-orange-800"
+                                          : "bg-gray-100 text-gray-800"
+                                      }`}
+                                    >
+                                      {assignment.position
+                                        ?.replace("_", " ")
+                                        .replace(/\b\w/g, (l) =>
+                                          l.toUpperCase()
+                                        ) || "Crew"}
+                                    </span>
                                   </div>
                                 </div>
-                              );
-                            })}
+                              </div>
+                            ))}
                           </div>
                         </div>
                       );
@@ -2523,11 +2450,12 @@ const AdminDashboard = () => {
                   }
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                 >
-                  <option value="Scheduled">Scheduled</option>
-                  <option value="In-Flight">In-Flight</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Cancelled">Cancelled</option>
-                  <option value="Delayed">Delayed</option>
+                  <option value="scheduled">Scheduled</option>
+                  <option value="boarding">Boarding</option>
+                  <option value="departed">Departed</option>
+                  <option value="arrived">Arrived</option>
+                  <option value="cancelled">Cancelled</option>
+                  <option value="delayed">Delayed</option>
                 </select>
               </div>
 
@@ -2692,11 +2620,12 @@ const AdminDashboard = () => {
                   }
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                 >
-                  <option value="Scheduled">Scheduled</option>
-                  <option value="In-Flight">In-Flight</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Cancelled">Cancelled</option>
-                  <option value="Delayed">Delayed</option>
+                  <option value="scheduled">Scheduled</option>
+                  <option value="boarding">Boarding</option>
+                  <option value="departed">Departed</option>
+                  <option value="arrived">Arrived</option>
+                  <option value="cancelled">Cancelled</option>
+                  <option value="delayed">Delayed</option>
                 </select>
               </div>
 
@@ -3592,9 +3521,9 @@ const AdminDashboard = () => {
 
                 <div className="border border-gray-300 rounded-md p-4 max-h-64 overflow-y-auto">
                   {(() => {
-                    const crewWithUserData = getCrewWithUserData();
+                    const availableCrew = getAvailableCrewForAssignment();
 
-                    if (crewWithUserData.length === 0) {
+                    if (availableCrew.length === 0) {
                       return (
                         <div className="text-center py-8">
                           <Users className="mx-auto h-12 w-12 text-gray-400" />
@@ -3610,22 +3539,26 @@ const AdminDashboard = () => {
 
                     return (
                       <div className="space-y-2">
-                        {crewWithUserData.map((crewMember) => {
+                        {availableCrew.map((crewMember) => {
                           const isAlreadyAssigned =
                             crewAssignmentForm.flightId &&
                             isCrewAssignedToFlight(
                               crewMember.crewID,
                               parseInt(crewAssignmentForm.flightId)
                             );
-                          const isDisabled = isAlreadyAssigned; // Remove the user data requirement
+                          const isDisabled = isAlreadyAssigned;
 
                           return (
                             <div
                               key={crewMember.crewID}
-                              className={`flex items-center space-x-3 p-2 rounded-md transition-colors ${
+                              className={`flex items-center space-x-3 p-3 rounded-md border transition-colors ${
                                 isDisabled
-                                  ? "bg-gray-50 opacity-60"
-                                  : "hover:bg-gray-50"
+                                  ? "bg-gray-50 border-gray-200 opacity-60"
+                                  : crewAssignmentForm.crewMembers.includes(
+                                      crewMember.crewID.toString()
+                                    )
+                                  ? "bg-indigo-50 border-indigo-200"
+                                  : "bg-white border-gray-200 hover:bg-gray-50"
                               }`}
                             >
                               <input
@@ -3656,7 +3589,7 @@ const AdminDashboard = () => {
                                     </span>
                                     {crewMember.employeeNumber && (
                                       <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">
-                                        {crewMember.employeeNumber}
+                                        #{crewMember.employeeNumber}
                                       </span>
                                     )}
                                   </div>
@@ -3672,20 +3605,14 @@ const AdminDashboard = () => {
                                     )}
                                   </div>
 
-                                  <div className="flex items-center space-x-2 mt-1">
-                                    {!crewMember.hasUserData && (
-                                      <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
-                                        <AlertCircle className="w-3 h-3 mr-1" />
-                                        Missing User Data
-                                      </span>
-                                    )}
-                                    {isAlreadyAssigned && (
+                                  {isAlreadyAssigned && (
+                                    <div className="mt-1">
                                       <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
                                         <CheckCircle className="w-3 h-3 mr-1" />
-                                        Already Assigned
+                                        Already Assigned to This Flight
                                       </span>
-                                    )}
-                                  </div>
+                                    </div>
+                                  )}
                                 </div>
 
                                 <span
@@ -3720,7 +3647,7 @@ const AdminDashboard = () => {
                 </div>
 
                 {crewAssignmentForm.crewMembers.length > 0 && (
-                  <div className="mt-3 p-3 bg-indigo-50 rounded-md">
+                  <div className="mt-3 p-3 bg-indigo-50 rounded-md border border-indigo-200">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-indigo-900">
                         Selected Crew Members (
@@ -3733,20 +3660,20 @@ const AdminDashboard = () => {
                             crewMembers: [],
                           })
                         }
-                        className="text-indigo-600 hover:text-indigo-800 text-xs"
+                        className="text-indigo-600 hover:text-indigo-800 text-xs font-medium"
                       >
                         Clear All
                       </button>
                     </div>
-                    <div className="flex flex-wrap gap-1">
+                    <div className="flex flex-wrap gap-2">
                       {crewAssignmentForm.crewMembers.map((crewId) => {
-                        const crewMember = getCrewWithUserData().find(
+                        const crewMember = getAvailableCrewForAssignment().find(
                           (c) => c.crewID === parseInt(crewId)
                         );
                         return (
                           <span
                             key={crewId}
-                            className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
+                            className={`inline-flex items-center px-3 py-1 text-xs font-medium rounded-full ${
                               crewMember?.position === "pilot"
                                 ? "bg-blue-100 text-blue-800"
                                 : crewMember?.position === "co_pilot"
@@ -3759,21 +3686,12 @@ const AdminDashboard = () => {
                             }`}
                             title={`${crewMember?.name} (${crewMember?.email})`}
                           >
-                            {crewMember?.name
-                              ?.split(" ")
-                              .map((n) => n[0])
-                              .join("") || "UK"}{" "}
-                            -
-                            {crewMember?.position
-                              ? crewMember.position
-                                  .replace("_", " ")
-                                  .replace(/\b\w/g, (l) => l.toUpperCase())
-                              : "Crew"}
+                            {crewMember?.name || "Unknown"}
                             <button
                               onClick={() =>
                                 handleCrewMemberToggle(parseInt(crewId))
                               }
-                              className="ml-1 hover:bg-white hover:bg-opacity-20 rounded-full"
+                              className="ml-2 hover:bg-white hover:bg-opacity-20 rounded-full p-0.5"
                             >
                               <X className="w-3 h-3" />
                             </button>
@@ -3785,9 +3703,9 @@ const AdminDashboard = () => {
                 )}
               </div>
 
-              {/* Flight Details */}
+              {/* Flight Details Preview */}
               {crewAssignmentForm.flightId && (
-                <div className="bg-gray-50 p-4 rounded-lg">
+                <div className="bg-gray-50 p-4 rounded-lg border">
                   <h4 className="text-sm font-medium text-gray-900 mb-3 flex items-center">
                     <Plane className="w-4 h-4 mr-2" />
                     Flight Details
@@ -3851,11 +3769,8 @@ const AdminDashboard = () => {
                             </h5>
                             <div className="grid grid-cols-1 gap-2">
                               {currentAssignments.map((assignment) => {
-                                const crewRecord = crew.find(
-                                  (c) => c.crewID === assignment.crewID
-                                );
-                                const user = users.find(
-                                  (u) => u.userID === crewRecord?.userID
+                                const crewData = getCrewForAssignment(
+                                  assignment.crewID
                                 );
                                 return (
                                   <div
@@ -3864,28 +3779,24 @@ const AdminDashboard = () => {
                                   >
                                     <div className="flex items-center space-x-2">
                                       <span className="font-medium text-sm">
-                                        {user?.name || "Unknown"}
+                                        {crewData.name}
                                       </span>
                                       <span
                                         className={`inline-flex px-2 py-1 text-xs rounded-full ${
-                                          crewRecord?.position === "pilot"
+                                          crewData.position === "pilot"
                                             ? "bg-blue-100 text-blue-800"
-                                            : crewRecord?.position ===
-                                              "co_pilot"
+                                            : crewData.position === "co_pilot"
                                             ? "bg-purple-100 text-purple-800"
-                                            : crewRecord?.position ===
+                                            : crewData.position ===
                                               "flight_attendant"
                                             ? "bg-green-100 text-green-800"
-                                            : crewRecord?.position ===
-                                              "cabin_crew"
+                                            : crewData.position === "cabin_crew"
                                             ? "bg-orange-100 text-orange-800"
                                             : "bg-gray-100 text-gray-800"
                                         }`}
                                       >
-                                        {crewRecord?.position?.replace(
-                                          "_",
-                                          " "
-                                        ) || "Crew"}
+                                        {crewData.position?.replace("_", " ") ||
+                                          "Crew"}
                                       </span>
                                     </div>
                                     <div className="flex items-center space-x-2">
@@ -3906,7 +3817,7 @@ const AdminDashboard = () => {
                                             assignment.assignmentID
                                           )
                                         }
-                                        className="text-red-600 hover:text-red-800 p-1"
+                                        className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
                                         title="Remove assignment"
                                       >
                                         <Trash2 className="w-3 h-3" />
@@ -3936,13 +3847,13 @@ const AdminDashboard = () => {
                   Cancel
                 </button>
                 <button
-                  onClick={handleAssignCrew}
+                  onClick={handleAssignCrewWithValidation}
                   disabled={
                     loading ||
                     !crewAssignmentForm.flightId ||
                     crewAssignmentForm.crewMembers.length === 0
                   }
-                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
                 >
                   {loading ? (
                     <>
