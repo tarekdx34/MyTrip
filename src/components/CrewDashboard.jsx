@@ -817,20 +817,6 @@ const CrewDashboard = () => {
               </button>
 
               <button
-                onClick={() => setActiveTab("passengers")}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === "passengers"
-                    ? "border-blue-500 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
-              >
-                <div className="flex items-center space-x-2">
-                  <Users className="h-4 w-4" />
-                  <span>Passengers</span>
-                </div>
-              </button>
-
-              <button
                 onClick={() => setActiveTab("notifications")}
                 className={`py-4 px-1 border-b-2 font-medium text-sm ${
                   activeTab === "notifications"
@@ -895,7 +881,6 @@ const CrewDashboard = () => {
                             flight.assignmentID || Math.random()
                           }`}
                           className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 cursor-pointer transition-colors"
-                          onClick={() => handleFlightSelect(flight)}
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex-1">
@@ -1032,126 +1017,6 @@ const CrewDashboard = () => {
               </div>
             )}
             {/* Passengers Tab */}
-            {activeTab === "passengers" && (
-              <div>
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-semibold text-gray-900">
-                    Flight Passengers
-                    {selectedFlight && (
-                      <span className="ml-2 text-blue-600">
-                        ({selectedFlight.flightNumber})
-                      </span>
-                    )}
-                  </h2>
-
-                  {selectedFlight && (
-                    <div className="flex items-center space-x-4">
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <input
-                          type="text"
-                          placeholder="Search passengers..."
-                          value={passengerSearch}
-                          onChange={(e) => setPassengerSearch(e.target.value)}
-                          className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                      <button
-                        onClick={() => loadPassengers(selectedFlight.flightID)}
-                        className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                        disabled={loading}
-                      >
-                        {loading ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Users className="h-4 w-4" />
-                        )}
-                        <span>Refresh</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {!selectedFlight ? (
-                  <div className="text-center py-12">
-                    <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-500">
-                      Select a flight to view passengers
-                    </p>
-                  </div>
-                ) : loading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {filteredPassengers.length === 0 ? (
-                      <div className="text-center py-12">
-                        <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                        <p className="text-gray-500">
-                          {passengerSearch
-                            ? "No passengers match your search"
-                            : "No passengers found for this flight"}
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="grid gap-4">
-                        {filteredPassengers.map((passenger) => (
-                          <div
-                            key={passenger.passengerId}
-                            className="bg-gray-50 rounded-lg p-4"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1">
-                                <h3 className="font-semibold text-gray-900">
-                                  {passenger.name}
-                                </h3>
-                                <div className="mt-2 grid grid-cols-1 md:grid-cols-4 gap-4 text-sm text-gray-600">
-                                  <div>
-                                    <span className="font-medium">Seat:</span>{" "}
-                                    {passenger.seatNumber}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Ticket:</span>{" "}
-                                    {passenger.ticketId}
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Status:</span>{" "}
-                                    <span
-                                      className={`px-2 py-1 rounded text-xs ${getStatusColor(
-                                        passenger.bookingStatus
-                                      )}`}
-                                    >
-                                      {passenger.bookingStatus}
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">
-                                      Nationality:
-                                    </span>{" "}
-                                    {passenger.nationality || "N/A"}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {error && (
-                  <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                    <div className="flex items-center space-x-2 text-red-700">
-                      <AlertCircle className="h-4 w-4" />
-                      <span className="font-medium">Error</span>
-                    </div>
-                    <p className="mt-1 text-red-600">{error}</p>
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* Notifications Tab */}
             {activeTab === "notifications" && (
