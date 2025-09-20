@@ -46,6 +46,7 @@ import {
   CreditCard,
 } from "lucide-react";
 import FlightSearch from "./FlightSearch"; // adjust path as needed
+import Reports from "./Reports";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -1266,113 +1267,7 @@ const AdminDashboard = () => {
 
         {/* Main Content */}
         <div className="flex-1 p-8">
-          {activeSection === "dashboard" && (
-            <div>
-              <h2 className="text-3xl font-bold text-gray-800 mb-8">
-                Dashboard Overview
-              </h2>
-
-              {/* Stats Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <div className="bg-white p-6 rounded-lg shadow">
-                  <div className="flex items-center">
-                    <div className="p-3 rounded-full bg-blue-100">
-                      <Plane className="h-6 w-6 text-blue-600" />
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-600">
-                        Total Flights
-                      </p>
-                      <p className="text-2xl font-bold text-gray-900">
-                        {stats.totalFlights}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-lg shadow">
-                  <div className="flex items-center">
-                    <div className="p-3 rounded-full bg-green-100">
-                      <Users className="h-6 w-6 text-green-600" />
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-600">
-                        Total Users
-                      </p>
-                      <p className="text-2xl font-bold text-gray-900">
-                        {stats.totalUsers}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-lg shadow">
-                  <div className="flex items-center">
-                    <div className="p-3 rounded-full bg-purple-100">
-                      <CreditCard className="h-6 w-6 text-purple-600" />
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-600">
-                        Total Bookings
-                      </p>
-                      <p className="text-2xl font-bold text-gray-900">
-                        {stats.totalBookings}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-lg shadow">
-                  <div className="flex items-center">
-                    <div className="p-3 rounded-full bg-yellow-100">
-                      <Building className="h-6 w-6 text-yellow-600" />
-                    </div>
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-600">
-                        Revenue
-                      </p>
-                      <p className="text-2xl font-bold text-gray-900">
-                        {formatCurrency(stats.revenue)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Charts */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                <div className="bg-white p-6 rounded-lg shadow">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                    Flight Status Distribution
-                  </h3>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={flightStatusData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="value" fill="#3B82F6" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-
-                <div className="bg-white p-6 rounded-lg shadow">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                    User Types
-                  </h3>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={userTypeData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="value" fill="#10B981" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-          )}
+          {activeSection === "dashboard" && <Reports />}
 
           {activeSection === "flights" && (
             <div>

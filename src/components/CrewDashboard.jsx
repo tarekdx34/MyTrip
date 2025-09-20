@@ -126,117 +126,153 @@ const CrewDashboard = () => {
   const loadCrewMemberData = async () => {
     setLoading(true);
     setError(null);
+
     try {
-      // Get user data from localStorage (assuming it's stored after login)
-      const userData = JSON.parse(localStorage.getItem("user") || "{}");
-      const userId = userData.userId || userData.userID;
+      // Get user ID from localStorage (stored directly as userId)
+      const userId = localStorage.getItem("userId");
+      const role = localStorage.getItem("role");
+      const token = localStorage.getItem("token");
 
-      if (userId) {
-        // Fetch crew member details
-        const crew = await crewAPI.getCrewByUserId(userId);
-        const user = await userAPI.getUserById(userId);
+      console.log("localStorage userId:", userId);
+      console.log("localStorage role:", role);
+      console.log("localStorage token exists:", !!token);
 
-        setCrewMember({
-          ...crew,
-          name: user.name,
-          email: user.email,
-          userId: userId,
-        });
-
-        // Load flights and assignments for this crew member
-        await loadCrewFlights(crew.crewID);
-        await loadCrewAssignments(crew.crewID);
+      if (!userId) {
+        throw new Error(
+          "No user ID found in localStorage. Please log in again."
+        );
       }
+
+      if (!token) {
+        throw new Error("No authentication token found. Please log in again.");
+      }
+
+      // Convert userId to number
+      const userIdNum = parseInt(userId);
+      console.log("Parsed user ID:", userIdNum);
+
+      if (!userIdNum) {
+        throw new Error(
+          "Invalid user ID found in localStorage. Please log in again."
+        );
+      }
+
+      // Verify the role is crew
+      if (role !== "ROLE_CREW") {
+        throw new Error(`User is not a crew member. Role: ${role}`);
+      }
+
+      // First, verify the user exists
+      console.log("Fetching user details for ID:", userIdNum);
+      const user = await userAPI.getUserById(userIdNum);
+      console.log("User details:", user);
+
+      // Fetch crew member details
+      console.log("Fetching crew details for user ID:", userIdNum);
+      const crew = await crewAPI.getCrewByUserId(userIdNum);
+      console.log("Crew details:", crew);
+
+      const crewMemberData = {
+        ...crew,
+        name: user.name,
+        email: user.email,
+        userId: userIdNum,
+        userType: user.userType,
+      };
+
+      console.log("Final crew member data:", crewMemberData);
+      setCrewMember(crewMemberData);
+
+      // Load flights and assignments for this crew member
+      console.log("Loading flights for crew ID:", crew.crewID);
+      await loadCrewFlights(crew.crewID);
+
+      console.log("Loading assignments for crew ID:", crew.crewID);
+      await loadCrewAssignments(crew.crewID);
     } catch (err) {
+      console.error("Error in loadCrewMemberData:", err);
       setError("Failed to load crew member data: " + err.message);
+
+      // If the error is about authentication or user not found, redirect to login
+      if (
+        err.message.includes("not a crew member") ||
+        err.message.includes("Please log in again")
+      ) {
+        setTimeout(() => {
+          localStorage.clear();
+          navigate("/login");
+        }, 3000);
+      }
     } finally {
       setLoading(false);
     }
   };
-
   const loadCrewFlights = async (crewId) => {
+    console.log("=== LOADING CREW FLIGHTS ===");
+    console.log("Crew ID:", crewId);
+
+    if (!crewId) {
+      console.error("No crew ID provided");
+      setFlights([]);
+      return;
+    }
+
     setLoading(true);
     setError(null);
+
     try {
-      // Try to get crew assignments using the specific crew endpoint
-      try {
-        const assignments = await crewSpecificAPI.getCrewAssignments(crewId);
+      // Get all assignments
+      console.log("Fetching all assignments...");
+      const assignments = await crewAssignmentAPI.getAllAssignments();
+      console.log("All assignments:", assignments);
 
-        if (
-          typeof assignments === "string" &&
-          assignments.includes("implement")
-        ) {
-          throw new Error("Endpoint not implemented yet");
-        }
-
-        // If we get actual assignment data, process it
-        const flightPromises = assignments.map(async (assignment) => {
-          try {
-            const flight = await flightAPI.getFlightById(assignment.flightID);
-            return {
-              ...flight,
-              assignmentStatus: assignment.status,
-              assignmentDate: assignment.assignmentDate,
-              assignedBy: assignment.assignedBy,
-            };
-          } catch (err) {
-            console.error(`Failed to load flight ${assignment.flightID}:`, err);
-            return null;
-          }
-        });
-
-        const flightData = await Promise.all(flightPromises);
-        const validFlights = flightData.filter((flight) => flight !== null);
-        setFlights(validFlights);
-      } catch (assignmentErr) {
+      // Filter for this crew member
+      const crewAssignments = assignments.filter((assignment) => {
         console.log(
-          "Crew assignments endpoint not implemented, using fallback method"
+          `Checking assignment: crewID ${assignment.crewID} vs ${crewId}`
         );
+        return parseInt(assignment.crewID) === parseInt(crewId);
+      });
 
-        // Fallback: Try crew assignment API or use available flights
-        try {
-          const assignments = await crewAssignmentAPI.getAllAssignments();
-          const crewAssignments = assignments.filter(
-            (assignment) => assignment.crewID === crewId
-          );
+      console.log("Filtered crew assignments:", crewAssignments);
 
-          if (crewAssignments.length === 0) {
-            // If no assignments, show some available flights
-            const availableFlights = await flightAPI.getAvailableFlights();
-            setFlights(availableFlights.slice(0, 5));
-            return;
-          }
-
-          // Process actual assignments
-          const flightPromises = crewAssignments.map(async (assignment) => {
-            try {
-              const flight = await flightAPI.getFlightById(assignment.flightID);
-              return {
-                ...flight,
-                assignmentStatus: assignment.status,
-                assignmentDate: assignment.assignmentDate,
-                assignedBy: assignment.assignedBy,
-              };
-            } catch (err) {
-              console.error(
-                `Failed to load flight ${assignment.flightID}:`,
-                err
-              );
-              return null;
-            }
-          });
-
-          const flightData = await Promise.all(flightPromises);
-          const validFlights = flightData.filter((flight) => flight !== null);
-          setFlights(validFlights);
-        } catch (fallbackErr) {
-          // Final fallback: show available flights
-          const availableFlights = await flightAPI.getAvailableFlights();
-          setFlights(availableFlights.slice(0, 3));
-        }
+      if (crewAssignments.length === 0) {
+        console.log("No assignments found for this crew member");
+        setFlights([]);
+        setError("No flight assignments found for your account.");
+        return;
       }
+
+      // Load flight details
+      console.log("Loading flight details for assignments...");
+      const flightPromises = crewAssignments.map(async (assignment) => {
+        try {
+          console.log(`Loading flight ${assignment.flightID}...`);
+          const flight = await flightAPI.getFlightById(assignment.flightID);
+          console.log(`Flight ${assignment.flightID} loaded:`, flight);
+
+          return {
+            ...flight,
+            assignmentStatus: assignment.status,
+            assignmentDate: assignment.assignmentDate,
+            assignedBy: assignment.assignedBy,
+            assignmentID: assignment.assignmentID,
+          };
+        } catch (err) {
+          console.error(`Failed to load flight ${assignment.flightID}:`, err);
+          return null;
+        }
+      });
+
+      const flightData = await Promise.all(flightPromises);
+      const validFlights = flightData.filter((flight) => flight !== null);
+
+      console.log("Final flight data:", validFlights);
+      setFlights(validFlights);
     } catch (err) {
+      console.error("Error in loadCrewFlights:", err);
       setError("Failed to load crew flights: " + err.message);
+      setFlights([]);
     } finally {
       setLoading(false);
     }
@@ -244,29 +280,18 @@ const CrewDashboard = () => {
 
   const loadCrewAssignments = async (crewId) => {
     try {
-      // Try to get crew assignments, with fallback if endpoint is not implemented
-      try {
-        const assignments = await crewAssignmentAPI.getAllAssignments();
-        const crewAssignments = assignments.filter(
-          (assignment) => assignment.crewID === crewId
-        );
-        setCrewAssignments(crewAssignments);
-      } catch (err) {
-        console.log("Crew assignment API endpoint not fully implemented");
-        // Create mock assignments for demonstration
-        setCrewAssignments([
-          {
-            assignmentID: 1,
-            flightID: 1,
-            crewID: crewId,
-            assignmentDate: new Date().toISOString(),
-            assignedBy: "Admin",
-            status: "assigned",
-          },
-        ]);
-      }
+      console.log("Loading assignments for crew ID:", crewId);
+      const assignments = await crewAssignmentAPI.getAllAssignments();
+      const crewAssignments = assignments.filter(
+        (assignment) => assignment.crewID === crewId
+      );
+
+      console.log("Crew assignments found:", crewAssignments.length);
+      setCrewAssignments(crewAssignments);
     } catch (err) {
       console.error("Failed to load crew assignments:", err);
+      // Set empty array instead of mock data
+      setCrewAssignments([]);
     }
   };
 
@@ -800,14 +825,24 @@ const CrewDashboard = () => {
                                   {getStatusIcon(flight.status)}
                                   <span>{flight.status}</span>
                                 </div>
+
+                                {/* Show assignment status if available */}
+                                {flight.assignmentStatus && (
+                                  <div className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    Assignment: {flight.assignmentStatus}
+                                  </div>
+                                )}
                               </div>
 
                               <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="flex items-center space-x-2">
                                   <MapPin className="h-4 w-4 text-gray-500" />
                                   <span className="text-sm text-gray-600">
-                                    {flight.departureAirport?.airportCode} →{" "}
-                                    {flight.arrivalAirport?.airportCode}
+                                    {flight.departureAirport?.airportCode ||
+                                      "N/A"}{" "}
+                                    →{" "}
+                                    {flight.arrivalAirport?.airportCode ||
+                                      "N/A"}
                                   </span>
                                 </div>
 
@@ -825,6 +860,21 @@ const CrewDashboard = () => {
                                   </span>
                                 </div>
                               </div>
+
+                              {/* Show assignment date */}
+                              {flight.assignmentDate && (
+                                <div className="mt-2 text-xs text-gray-500">
+                                  Assigned:{" "}
+                                  {formatDateTime(flight.assignmentDate)}
+                                </div>
+                              )}
+
+                              {/* Show error if flight details couldn't be loaded */}
+                              {flight._error && (
+                                <div className="mt-2 text-xs text-red-600">
+                                  {flight._error}
+                                </div>
+                              )}
                             </div>
 
                             <div className="text-right">

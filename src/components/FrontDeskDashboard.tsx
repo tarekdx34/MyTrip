@@ -382,12 +382,22 @@ const FrontDeskDashboard = () => {
     return new Date(dateString).toLocaleString();
   };
 
-  const getPassengerName = (passengerID: number) => {
+  const getPassengerName = (passengerID) => {
+    console.log("Looking for passenger with ID:", passengerID);
+    console.log("Available passengers:", passengers);
+
     const passenger = passengers.find((p) => p.passengerID === passengerID);
-    if (!passenger) return "Unknown Passenger";
+    console.log("Found passenger:", passenger);
+
+    if (!passenger) {
+      console.log("No passenger found with ID:", passengerID);
+      return `Passenger ID: ${passengerID}`;
+    }
 
     const user = users.find((u) => u.userID === passenger.userID);
-    return user?.name || "Unknown Passenger";
+    console.log("Found user for passenger:", user);
+
+    return user?.name || `User ID: ${passenger.userID}`;
   };
 
   const getFlightDetails = (flightID: number) => {
@@ -694,7 +704,9 @@ const FrontDeskDashboard = () => {
                           Booking #{booking.bookingNumber}
                         </h4>
                         <p className="text-gray-600">
-                          Passenger: {getPassengerName(booking.passengerID)}
+                          Passenger:{" "}
+                          {booking.passengerName ||
+                            getPassengerName(booking.passengerID)}
                         </p>
                         <p className="text-gray-600">
                           Flight: {booking.flightNumber}
@@ -833,7 +845,9 @@ const FrontDeskDashboard = () => {
                             Booking #{booking.bookingNumber}
                           </h4>
                           <p className="text-gray-600">
-                            Passenger: {getPassengerName(booking.passengerID)}
+                            Passenger:{" "}
+                            {booking.passengerName ||
+                              getPassengerName(booking.passengerID)}
                           </p>
                           <p className="text-gray-600">
                             Flight: {booking.flightNumber}
@@ -940,7 +954,9 @@ const FrontDeskDashboard = () => {
                             Payment Pending - Booking #{booking.bookingNumber}
                           </h4>
                           <p className="text-gray-600">
-                            Passenger: {getPassengerName(booking.passengerID)}
+                            Passenger:{" "}
+                            {booking.passengerName ||
+                              getPassengerName(booking.passengerID)}
                           </p>
                           <p className="text-gray-600">
                             Flight: {booking.flightNumber}

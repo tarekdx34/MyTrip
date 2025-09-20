@@ -418,66 +418,102 @@ const PassengerDashboard: React.FC = () => {
     if (!currentPassengerId) return;
 
     try {
-      // Get confirmed bookings for the passenger
-      const confirmedBookings =
-        await bookingAPI.getBookingsByPassengerAndStatus(
-          currentPassengerId,
-          "confirmed"
-        );
+      setLoading(true);
 
-      // Get all scheduled flights
-      const scheduledFlights = await flightAPI.getFlightsByStatus("Scheduled");
-
-      // Create a map of scheduled flights for quick lookup
-      const scheduledFlightMap = new Map(
-        scheduledFlights.map((flight) => [flight.flightID, flight])
+      // Get all bookings for the passenger
+      const allBookings = await bookingAPI.getBookingsByPassenger(
+        currentPassengerId
       );
 
-      const checkInData: CheckInFlight[] = [];
+      // Filter for confirmed bookings
+      const confirmedBookings = allBookings.filter(
+        (booking) => booking.status === "confirmed"
+      );
+
+      const checkInData = [];
 
       for (const booking of confirmedBookings) {
-        const flight = scheduledFlightMap.get(booking.flightID);
+        try {
+          // Get flight details for this booking
+          const flight = await flightAPI.getFlightById(booking.flightID);
 
-        if (flight) {
-          // Check if flight is eligible for check-in (within 24 hours of departure)
-          const departureTime = new Date(flight.departureTime);
-          const now = new Date();
-          const hoursUntilDeparture =
-            (departureTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+          // Check if flight is scheduled and eligible for check-in
+          if (flight && flight.status === "scheduled") {
+            const departureTime = new Date(flight.departureTime);
+            const now = new Date();
+            const hoursUntilDeparture =
+              (departureTime.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-          // Allow check-in 24 hours before departure and up to 2 hours before
-          if (hoursUntilDeparture <= 24 && hoursUntilDeparture >= 2) {
-            // Get passenger tickets to check if already checked in
-            const tickets = await ticketsAPI.getTicketsByPassenger(
-              currentPassengerId
-            );
-            const flightTicket = tickets.find(
-              (ticket) =>
-                ticket.flightId === booking.flightID &&
-                ticket.bookingId === booking.bookingID
-            );
+            // Allow check-in 24 hours before departure and up to 2 hours before
+            if (hoursUntilDeparture <= 24 && hoursUntilDeparture >= 2) {
+              // Check if already checked in by looking at tickets
+              let checkedIn = false;
+              let ticketId = null;
 
-            checkInData.push({
-              flightId: booking.flightID.toString(),
-              departureTime: flight.departureTime,
-              origin: flight.departureAirport.airportCode,
-              destination: flight.arrivalAirport.airportCode,
-              checkedIn: flightTicket?.status === "CheckedIn" || false,
-              bookingId: booking.bookingID,
-              ticketId: flightTicket?.ticketId,
-              seatNumber: booking.seatNumber,
-              flightNumber: flight.flightNumber,
-            });
+              try {
+                const passengerTickets = await ticketsAPI.getTicketsByPassenger(
+                  currentPassengerId
+                );
+                const flightTicket = passengerTickets.find(
+                  (ticket) =>
+                    ticket.flightId === booking.flightID &&
+                    ticket.bookingId === booking.bookingID
+                );
+
+                if (flightTicket) {
+                  checkedIn = flightTicket.status === "CheckedIn";
+                  ticketId = flightTicket.ticketId;
+                }
+              } catch (ticketError) {
+                console.warn(
+                  "Could not load tickets for check-in status:",
+                  ticketError
+                );
+                // Continue without ticket info
+              }
+
+              checkInData.push({
+                flightId: booking.flightID.toString(),
+                departureTime: flight.departureTime,
+                origin: flight.departureAirport.airportCode,
+                destination: flight.arrivalAirport.airportCode,
+                checkedIn: checkedIn,
+                bookingId: booking.bookingID,
+                ticketId: ticketId,
+                seatNumber: booking.seatNumber,
+                flightNumber: flight.flightNumber,
+              });
+            }
           }
+        } catch (flightError) {
+          console.error(
+            `Failed to load flight ${booking.flightID}:`,
+            flightError
+          );
+          // Continue to next booking
         }
       }
 
       setCheckInFlights(checkInData);
-    } catch (err) {
-      console.error("Failed to load check-in flights:", err);
+
+      if (checkInData.length === 0) {
+        console.log("No flights eligible for check-in found");
+      }
+    } catch (error) {
+      console.error("Failed to load check-in flights:", error);
       setError("Failed to load eligible flights for check-in");
+    } finally {
+      setLoading(false);
     }
   };
+  useEffect(() => {
+    if (activeTab === "checkin" && currentPassengerId) {
+      loadCheckInFlights();
+    }
+  }, [activeTab, currentPassengerId]);
+  // Add this at the start of loadCheckInFlights
+  console.log("Loading check-in flights for passenger:", currentPassengerId);
+  console.log("Current bookings:", bookings);
 
   const loadProfile = async () => {
     if (!currentUserId || !currentUser) return;

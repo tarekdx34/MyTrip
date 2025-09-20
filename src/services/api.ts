@@ -1082,3 +1082,109 @@ export const crewAssignmentAPI = {
     return this.updateAssignmentStatus(assignmentId, "cancelled");
   },
 };
+// Add this to your existing api.ts file
+
+// Reports API
+export const reportAPI = {
+  async getDemandReports(): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/admin/reports/demand`);
+    if (!response.ok) throw new Error("Failed to fetch demand reports");
+    return await response.json();
+  },
+
+  async getBookingSummary(): Promise<any> {
+    const response = await fetch(
+      `${API_BASE_URL}/admin/reports/booking-summary`
+    );
+    if (!response.ok) throw new Error("Failed to fetch booking summary");
+    return await response.json();
+  },
+
+  async getFlightDetails(): Promise<any> {
+    const response = await fetch(
+      `${API_BASE_URL}/admin/reports/flight-details`
+    );
+    if (!response.ok) throw new Error("Failed to fetch flight details");
+    return await response.json();
+  },
+
+  async generateCustomReport(
+    reportType: string,
+    parameters: any = {}
+  ): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/admin/reports/custom`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        reportType,
+        parameters,
+      }),
+    });
+    if (!response.ok) throw new Error("Failed to generate custom report");
+    return await response.json();
+  },
+
+  async getDemandByRoute(): Promise<any> {
+    const response = await fetch(
+      `${API_BASE_URL}/admin/reports/demand-by-route`
+    );
+    if (!response.ok) throw new Error("Failed to fetch demand by route");
+    return await response.json();
+  },
+
+  async getDirectFlightDemand(params?: {
+    year?: number;
+    month?: number;
+    demandLevel?: string;
+  }): Promise<any> {
+    const searchParams = new URLSearchParams();
+    if (params?.year) searchParams.append("year", params.year.toString());
+    if (params?.month) searchParams.append("month", params.month.toString());
+    if (params?.demandLevel)
+      searchParams.append("demandLevel", params.demandLevel);
+
+    const url = `${API_BASE_URL}/admin/reports/direct-flight-demand${
+      searchParams.toString() ? "?" + searchParams.toString() : ""
+    }`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Failed to fetch direct flight demand");
+    return await response.json();
+  },
+
+  async getRevenueAnalysis(): Promise<any> {
+    const response = await fetch(
+      `${API_BASE_URL}/admin/reports/revenue-analysis`
+    );
+    if (!response.ok) throw new Error("Failed to fetch revenue analysis");
+    return await response.json();
+  },
+
+  async getCrewUtilization(): Promise<any> {
+    const response = await fetch(
+      `${API_BASE_URL}/admin/reports/crew-utilization`
+    );
+    if (!response.ok) throw new Error("Failed to fetch crew utilization");
+    return await response.json();
+  },
+
+  async getPassengerDemographics(): Promise<any> {
+    const response = await fetch(
+      `${API_BASE_URL}/admin/reports/passenger-demographics`
+    );
+    if (!response.ok) throw new Error("Failed to fetch passenger demographics");
+    return await response.json();
+  },
+
+  async getAircraftUtilization(): Promise<any> {
+    const response = await fetch(
+      `${API_BASE_URL}/admin/reports/aircraft-utilization`
+    );
+    if (!response.ok) throw new Error("Failed to fetch aircraft utilization");
+    return await response.json();
+  },
+};
+
+// Add this to your existing imports at the top of the file
+// export { reportAPI };
