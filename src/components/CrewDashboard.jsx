@@ -233,9 +233,9 @@ const CrewDashboard = () => {
       console.log("Loading flight details for assignments...");
       const flightPromises = crewAssignments.map(async (assignment) => {
         try {
-          console.log(`Loading flight ${assignment.flightID}...`);
-          const flight = await flightAPI.getFlightById(assignment.flightID);
-          console.log(`Flight ${assignment.flightID} loaded:`, flight);
+          console.log(`Loading flight ${assignment.flightId}...`);
+          const flight = await flightAPI.getFlightById(assignment.flightId);
+          console.log(`Flight ${assignment.flightId} loaded:`, flight);
 
           return {
             ...flight,
