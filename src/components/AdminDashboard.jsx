@@ -201,20 +201,33 @@ const AdminDashboard = () => {
 
   // Flight Management
   const handleAddFlight = async () => {
-    if (
-      !flightForm.flightNumber ||
-      !flightForm.aircraftID ||
-      !flightForm.departureAirportId ||
-      !flightForm.arrivalAirportId ||
-      !flightForm.departureTime ||
-      !flightForm.arrivalTime
-    ) {
-      showAlert("Please fill all required fields", "error");
+    console.log("=== DEBUG: Starting handleAddFlight ===");
+    console.log("Form data:", flightForm);
+
+    // Enhanced validation with debugging
+    const missingFields = [];
+    if (!flightForm.flightNumber) missingFields.push("Flight Number");
+    if (!flightForm.aircraftID) missingFields.push("Aircraft");
+    if (!flightForm.departureAirportId) missingFields.push("Departure Airport");
+    if (!flightForm.arrivalAirportId) missingFields.push("Arrival Airport");
+    if (!flightForm.departureTime) missingFields.push("Departure Time");
+    if (!flightForm.arrivalTime) missingFields.push("Arrival Time");
+
+    console.log("Missing fields:", missingFields);
+
+    if (missingFields.length > 0) {
+      showAlert(
+        `Please fill the following required fields: ${missingFields.join(
+          ", "
+        )}`,
+        "error"
+      );
       return;
     }
 
     setLoading(true);
     try {
+      // Find the selected aircraft and airports for validation
       const selectedAircraft = aircrafts.find(
         (a) => a.aircraftID === parseInt(flightForm.aircraftID)
       );
@@ -225,35 +238,76 @@ const AdminDashboard = () => {
         (a) => a.airportID === parseInt(flightForm.arrivalAirportId)
       );
 
+      console.log("Selected aircraft:", selectedAircraft);
+      console.log("Departure airport:", departureAirport);
+      console.log("Arrival airport:", arrivalAirport);
+
+      // Check if we found all required entities
+      if (!selectedAircraft) {
+        showAlert("Selected aircraft not found", "error");
+        return;
+      }
+      if (!departureAirport) {
+        showAlert("Departure airport not found", "error");
+        return;
+      }
+      if (!arrivalAirport) {
+        showAlert("Arrival airport not found", "error");
+        return;
+      }
+
+      // CORRECTED: Send the data structure that matches your backend expectations
       const newFlight = {
         flightNumber: flightForm.flightNumber,
-        aircraft: selectedAircraft,
-        departureAirport: departureAirport,
-        arrivalAirport: arrivalAirport,
-        departureTime: flightForm.departureTime,
-        arrivalTime: flightForm.arrivalTime,
+        // Send IDs only, not full objects
+        aircraftID: parseInt(flightForm.aircraftID),
+        departureAirportID: parseInt(flightForm.departureAirportId),
+        arrivalAirportID: parseInt(flightForm.arrivalAirportId),
+        // Ensure dates are in ISO format
+        departureTime: new Date(flightForm.departureTime).toISOString(),
+        arrivalTime: new Date(flightForm.arrivalTime).toISOString(),
         duration: parseInt(flightForm.duration) || 120,
         price: parseFloat(flightForm.price) || 500,
         availableSeats:
           parseInt(flightForm.availableSeats) ||
-          selectedAircraft?.capacity ||
+          selectedAircraft.capacity ||
           150,
         status: flightForm.status,
       };
 
+      console.log("Flight data to send:", newFlight);
+
+      // Make the API call
       const result = await flightAPI.createFlight(newFlight);
+      console.log("API response:", result);
+
       showAlert(`Flight ${result.flightNumber} created successfully`);
       setShowAddFlightModal(false);
       resetFlightForm();
       loadAllData();
     } catch (error) {
-      console.error("Failed to create flight:", error);
-      showAlert(error.message || "Failed to create flight", "error");
+      console.error("=== ERROR DETAILS ===");
+      console.error("Error object:", error);
+      console.error("Error message:", error.message);
+      console.error("Error response:", error.response);
+      console.error("Error response data:", error.response?.data);
+      console.error("Error status:", error.response?.status);
+
+      // More detailed error message
+      let errorMessage = "Failed to create flight";
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      showAlert(errorMessage, "error");
     } finally {
       setLoading(false);
     }
   };
-
   const handleUpdateFlight = async () => {
     if (!selectedFlight) return;
     setLoading(true);
@@ -2185,7 +2239,7 @@ const AdminDashboard = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  Flight Number
+                  Flight Number *
                 </label>
                 <input
                   type="text"
@@ -2203,7 +2257,7 @@ const AdminDashboard = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  Aircraft
+                  Aircraft *
                 </label>
                 <select
                   value={flightForm.aircraftID}
@@ -2226,7 +2280,7 @@ const AdminDashboard = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  Departure Airport
+                  Departure Airport *
                 </label>
                 <select
                   value={flightForm.departureAirportId}
@@ -2247,10 +2301,34 @@ const AdminDashboard = () => {
                 </select>
               </div>
 
+              {/* MISSING ARRIVAL AIRPORT FIELD - ADD THIS */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Arrival Airport *
+                </label>
+                <select
+                  value={flightForm.arrivalAirportId}
+                  onChange={(e) =>
+                    setFlightForm({
+                      ...flightForm,
+                      arrivalAirportId: e.target.value,
+                    })
+                  }
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="">Select Arrival Airport</option>
+                  {airports.map((airport) => (
+                    <option key={airport.airportID} value={airport.airportID}>
+                      {airport.airportCode} - {airport.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Departure Time
+                    Departure Time *
                   </label>
                   <input
                     type="datetime-local"
@@ -2267,7 +2345,7 @@ const AdminDashboard = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    Arrival Time
+                    Arrival Time *
                   </label>
                   <input
                     type="datetime-local"

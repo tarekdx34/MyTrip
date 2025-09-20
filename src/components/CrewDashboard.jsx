@@ -133,10 +133,6 @@ const CrewDashboard = () => {
       const role = localStorage.getItem("role");
       const token = localStorage.getItem("token");
 
-      console.log("localStorage userId:", userId);
-      console.log("localStorage role:", role);
-      console.log("localStorage token exists:", !!token);
-
       if (!userId) {
         throw new Error(
           "No user ID found in localStorage. Please log in again."
@@ -149,7 +145,6 @@ const CrewDashboard = () => {
 
       // Convert userId to number
       const userIdNum = parseInt(userId);
-      console.log("Parsed user ID:", userIdNum);
 
       if (!userIdNum) {
         throw new Error(
@@ -163,14 +158,10 @@ const CrewDashboard = () => {
       }
 
       // First, verify the user exists
-      console.log("Fetching user details for ID:", userIdNum);
       const user = await userAPI.getUserById(userIdNum);
-      console.log("User details:", user);
 
       // Fetch crew member details
-      console.log("Fetching crew details for user ID:", userIdNum);
       const crew = await crewAPI.getCrewByUserId(userIdNum);
-      console.log("Crew details:", crew);
 
       const crewMemberData = {
         ...crew,
@@ -180,17 +171,13 @@ const CrewDashboard = () => {
         userType: user.userType,
       };
 
-      console.log("Final crew member data:", crewMemberData);
       setCrewMember(crewMemberData);
 
       // Load flights and assignments for this crew member
-      console.log("Loading flights for crew ID:", crew.crewID);
       await loadCrewFlights(crew.crewID);
 
-      console.log("Loading assignments for crew ID:", crew.crewID);
       await loadCrewAssignments(crew.crewID);
     } catch (err) {
-      console.error("Error in loadCrewMemberData:", err);
       setError("Failed to load crew member data: " + err.message);
 
       // If the error is about authentication or user not found, redirect to login
@@ -221,19 +208,18 @@ const CrewDashboard = () => {
     setError(null);
 
     try {
-      // Get all assignments
-      console.log("Fetching all assignments...");
-      const assignments = await crewAssignmentAPI.getAllAssignments();
-      console.log("All assignments:", assignments);
+      // Get all assignments and filter for this crew member
+      console.log(
+        "Fetching all assignments and filtering for crew ID:",
+        crewId
+      );
+      const allAssignments = await crewAssignmentAPI.getAllAssignments();
+      console.log("All assignments fetched:", allAssignments.length);
 
-      // Filter for this crew member
-      const crewAssignments = assignments.filter((assignment) => {
-        console.log(
-          `Checking assignment: crewID ${assignment.crewID} vs ${crewId}`
-        );
-        return parseInt(assignment.crewID) === parseInt(crewId);
-      });
-
+      const crewAssignments = allAssignments.filter(
+        (assignment) =>
+          parseInt(assignment.crewId || assignment.crewID) === parseInt(crewId)
+      );
       console.log("Filtered crew assignments:", crewAssignments);
 
       if (crewAssignments.length === 0) {
@@ -243,7 +229,7 @@ const CrewDashboard = () => {
         return;
       }
 
-      // Load flight details
+      // Load flight details for each assignment
       console.log("Loading flight details for assignments...");
       const flightPromises = crewAssignments.map(async (assignment) => {
         try {
@@ -253,6 +239,7 @@ const CrewDashboard = () => {
 
           return {
             ...flight,
+            // Add assignment-specific data
             assignmentStatus: assignment.status,
             assignmentDate: assignment.assignmentDate,
             assignedBy: assignment.assignedBy,
@@ -260,15 +247,31 @@ const CrewDashboard = () => {
           };
         } catch (err) {
           console.error(`Failed to load flight ${assignment.flightID}:`, err);
-          return null;
+          // Return a placeholder with error info instead of null
+          return {
+            flightID: assignment.flightID,
+            flightNumber: `Flight ${assignment.flightID}`,
+            departureAirport: { airportCode: "N/A", name: "Unknown" },
+            arrivalAirport: { airportCode: "N/A", name: "Unknown" },
+            departureTime: assignment.assignmentDate,
+            arrivalTime: assignment.assignmentDate,
+            duration: 0,
+            price: 0,
+            availableSeats: 0,
+            status: "unknown",
+            aircraft: { aircraftModel: "N/A" },
+            assignmentStatus: assignment.status,
+            assignmentDate: assignment.assignmentDate,
+            assignedBy: assignment.assignedBy,
+            assignmentID: assignment.assignmentID,
+            _error: `Could not load flight details: ${err.message}`,
+          };
         }
       });
 
       const flightData = await Promise.all(flightPromises);
-      const validFlights = flightData.filter((flight) => flight !== null);
-
-      console.log("Final flight data:", validFlights);
-      setFlights(validFlights);
+      console.log("Final flight data:", flightData);
+      setFlights(flightData);
     } catch (err) {
       console.error("Error in loadCrewFlights:", err);
       setError("Failed to load crew flights: " + err.message);
@@ -277,21 +280,100 @@ const CrewDashboard = () => {
       setLoading(false);
     }
   };
+  const debugFlightLoading = async () => {
+    console.log("=== DEBUG FLIGHT LOADING ===");
 
+    try {
+      console.log("Testing flightAPI.getAllFlights()...");
+      const allFlights = await flightAPI.getAllFlights();
+      console.log(
+        "All flights:",
+        allFlights.map((f) => ({ id: f.flightID, number: f.flightNumber }))
+      );
+
+      console.log("Testing specific flight IDs from assignments...");
+      const testFlightIds = [2, 4, 5, 6]; // Based on your API response
+
+      for (const flightId of testFlightIds) {
+        try {
+          console.log(`Testing flight ID ${flightId}...`);
+          const flight = await flightAPI.getFlightById(flightId);
+          console.log(`✓ Flight ${flightId}:`, {
+            flightNumber: flight.flightNumber,
+            status: flight.status,
+            departureAirport: flight.departureAirport?.airportCode,
+          });
+        } catch (err) {
+          console.error(`✗ Flight ${flightId} failed:`, err.message);
+        }
+      }
+    } catch (err) {
+      console.error("Debug error:", err);
+    }
+  };
   const loadCrewAssignments = async (crewId) => {
     try {
       console.log("Loading assignments for crew ID:", crewId);
-      const assignments = await crewAssignmentAPI.getAllAssignments();
-      const crewAssignments = assignments.filter(
-        (assignment) => assignment.crewID === crewId
+
+      // Get all assignments and filter for this crew member
+      const allAssignments = await crewAssignmentAPI.getAllAssignments();
+      console.log("All assignments fetched:", allAssignments.length);
+
+      const assignments = allAssignments.filter(
+        (assignment) => parseInt(assignment.crewID) === parseInt(crewId)
       );
 
-      console.log("Crew assignments found:", crewAssignments.length);
-      setCrewAssignments(crewAssignments);
+      console.log("Crew assignments found:", assignments.length);
+      setCrewAssignments(assignments);
     } catch (err) {
       console.error("Failed to load crew assignments:", err);
       // Set empty array instead of mock data
       setCrewAssignments([]);
+    }
+  };
+  const debugAssignments = async (crewId) => {
+    try {
+      console.log("=== DEBUGGING ASSIGNMENTS ===");
+      console.log("Looking for crew ID:", crewId, "Type:", typeof crewId);
+
+      const allAssignments = await crewAssignmentAPI.getAllAssignments();
+      console.log("Total assignments fetched:", allAssignments.length);
+      console.log("First few assignments:", allAssignments.slice(0, 3));
+
+      // Check field names in the assignments
+      if (allAssignments.length > 0) {
+        console.log("Assignment object keys:", Object.keys(allAssignments[0]));
+        console.log("Sample assignment:", allAssignments[0]);
+      }
+
+      // Try different field name variations
+      const crewAssignments1 = allAssignments.filter(
+        (assignment) => parseInt(assignment.crewID) === parseInt(crewId)
+      );
+      console.log("Filtering by crewID:", crewAssignments1.length);
+
+      const crewAssignments2 = allAssignments.filter(
+        (assignment) => parseInt(assignment.crewId) === parseInt(crewId)
+      );
+      console.log("Filtering by crewId:", crewAssignments2.length);
+
+      // Show all unique crew IDs in the data
+      const uniqueCrewIds = [
+        ...new Set(allAssignments.map((a) => a.crewID || a.crewId)),
+      ];
+      console.log("All crew IDs found in assignments:", uniqueCrewIds);
+
+      // Show assignments for crew ID 4 specifically
+      const crew4Assignments = allAssignments.filter(
+        (assignment) =>
+          assignment.crewID === 4 ||
+          assignment.crewId === 4 ||
+          assignment.crewID === "4" ||
+          assignment.crewId === "4"
+      );
+      console.log("Assignments for crew ID 4 (any format):", crew4Assignments);
+    } catch (err) {
+      console.error("Debug error:", err);
     }
   };
 
@@ -579,7 +661,6 @@ const CrewDashboard = () => {
       await loadNotifications();
 
       // Could add a success notification here
-      console.log("Flight report submitted successfully");
     } catch (err) {
       console.error("Failed to submit flight report:", err);
       setError("Failed to submit flight report: " + err.message);
@@ -803,20 +884,27 @@ const CrewDashboard = () => {
                       <div className="text-center py-12">
                         <Plane className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                         <p className="text-gray-500">No flights assigned yet</p>
+                        <p className="text-sm text-gray-400 mt-2">
+                          Contact your administrator to get flight assignments
+                        </p>
                       </div>
                     ) : (
                       flights.map((flight) => (
                         <div
-                          key={flight.flightID}
+                          key={`${flight.flightID}-${
+                            flight.assignmentID || Math.random()
+                          }`}
                           className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 cursor-pointer transition-colors"
                           onClick={() => handleFlightSelect(flight)}
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex-1">
-                              <div className="flex items-center space-x-4">
+                              <div className="flex items-center space-x-4 mb-2">
                                 <h3 className="font-semibold text-lg text-gray-900">
                                   {flight.flightNumber}
                                 </h3>
+
+                                {/* Flight Status */}
                                 <div
                                   className={`px-2 py-1 rounded-full text-xs font-medium flex items-center space-x-1 ${getStatusColor(
                                     flight.status
@@ -826,15 +914,29 @@ const CrewDashboard = () => {
                                   <span>{flight.status}</span>
                                 </div>
 
-                                {/* Show assignment status if available */}
+                                {/* Assignment Status */}
                                 {flight.assignmentStatus && (
-                                  <div className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                    Assignment: {flight.assignmentStatus}
+                                  <div
+                                    className={`px-2 py-1 rounded-full text-xs font-medium flex items-center space-x-1 ${
+                                      flight.assignmentStatus === "assigned"
+                                        ? "bg-blue-100 text-blue-800"
+                                        : flight.assignmentStatus ===
+                                          "completed"
+                                        ? "bg-green-100 text-green-800"
+                                        : flight.assignmentStatus ===
+                                          "cancelled"
+                                        ? "bg-red-100 text-red-800"
+                                        : "bg-gray-100 text-gray-800"
+                                    }`}
+                                  >
+                                    <span>
+                                      Assignment: {flight.assignmentStatus}
+                                    </span>
                                   </div>
                                 )}
                               </div>
 
-                              <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="flex items-center space-x-2">
                                   <MapPin className="h-4 w-4 text-gray-500" />
                                   <span className="text-sm text-gray-600">
@@ -861,18 +963,35 @@ const CrewDashboard = () => {
                                 </div>
                               </div>
 
-                              {/* Show assignment date */}
-                              {flight.assignmentDate && (
-                                <div className="mt-2 text-xs text-gray-500">
-                                  Assigned:{" "}
-                                  {formatDateTime(flight.assignmentDate)}
+                              {/* Assignment Information */}
+                              <div className="mt-3 pt-3 border-t border-gray-200">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-gray-500">
+                                  {flight.assignmentDate && (
+                                    <div>
+                                      <span className="font-medium">
+                                        Assignment Date:{" "}
+                                      </span>
+                                      {formatDateTime(flight.assignmentDate)}
+                                    </div>
+                                  )}
+                                  {flight.assignmentID && (
+                                    <div>
+                                      <span className="font-medium">
+                                        Assignment ID:{" "}
+                                      </span>
+                                      {flight.assignmentID}
+                                    </div>
+                                  )}
                                 </div>
-                              )}
+                              </div>
 
                               {/* Show error if flight details couldn't be loaded */}
                               {flight._error && (
-                                <div className="mt-2 text-xs text-red-600">
-                                  {flight._error}
+                                <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-700">
+                                  <div className="flex items-center space-x-1">
+                                    <AlertTriangle className="h-3 w-3" />
+                                    <span>{flight._error}</span>
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -882,6 +1001,11 @@ const CrewDashboard = () => {
                               <p className="font-medium">
                                 {flight.aircraft?.aircraftModel || "N/A"}
                               </p>
+                              {flight.aircraft?.registration && (
+                                <p className="text-xs text-gray-400">
+                                  {flight.aircraft.registration}
+                                </p>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -897,11 +1021,16 @@ const CrewDashboard = () => {
                       <span className="font-medium">Error</span>
                     </div>
                     <p className="mt-1 text-red-600">{error}</p>
+                    <button
+                      onClick={() => loadCrewFlights(crewMember?.crewID)}
+                      className="mt-2 text-sm text-red-700 hover:text-red-900 underline"
+                    >
+                      Try again
+                    </button>
                   </div>
                 )}
               </div>
             )}
-
             {/* Passengers Tab */}
             {activeTab === "passengers" && (
               <div>
